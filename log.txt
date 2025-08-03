@@ -1,0 +1,240 @@
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 10,
+        y: 10,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 10,
+            y: 10,
+        },
+        p2: Point {
+            x: 12,
+            y: 12,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 0,
+        layer: 1,
+        screen_layer: 7,
+        chr: TerminalChar {
+            chr: 'A',
+            fg_color: Some(
+                Rgb {
+                    r: 255,
+                    g: 0,
+                    b: 0,
+                },
+            ),
+            bg_color: None,
+        },
+    },
+    obj_id: 0,
+}
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 11,
+        y: 10,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 10,
+            y: 10,
+        },
+        p2: Point {
+            x: 12,
+            y: 12,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 0,
+        layer: 1,
+        screen_layer: 7,
+        chr: TerminalChar {
+            chr: 'B',
+            fg_color: None,
+            bg_color: Some(
+                Rgb {
+                    r: 0,
+                    g: 255,
+                    b: 0,
+                },
+            ),
+        },
+    },
+    obj_id: 0,
+}
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 10,
+        y: 11,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 10,
+            y: 10,
+        },
+        p2: Point {
+            x: 12,
+            y: 12,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 0,
+        layer: 1,
+        screen_layer: 7,
+        chr: TerminalChar {
+            chr: 'C',
+            fg_color: None,
+            bg_color: None,
+        },
+    },
+    obj_id: 0,
+}
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 11,
+        y: 11,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 10,
+            y: 10,
+        },
+        p2: Point {
+            x: 12,
+            y: 12,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 0,
+        layer: 1,
+        screen_layer: 7,
+        chr: TerminalChar {
+            chr: 'D',
+            fg_color: None,
+            bg_color: None,
+        },
+    },
+    obj_id: 0,
+}
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 5,
+        y: 5,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 5,
+            y: 5,
+        },
+        p2: Point {
+            x: 8,
+            y: 8,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 1,
+        layer: 1,
+        screen_layer: 0,
+        chr: TerminalChar {
+            chr: 'A',
+            fg_color: Some(
+                Rgb {
+                    r: 255,
+                    g: 0,
+                    b: 0,
+                },
+            ),
+            bg_color: None,
+        },
+    },
+    obj_id: 1,
+}
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 6,
+        y: 5,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 5,
+            y: 5,
+        },
+        p2: Point {
+            x: 8,
+            y: 8,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 1,
+        layer: 1,
+        screen_layer: 0,
+        chr: TerminalChar {
+            chr: 'B',
+            fg_color: None,
+            bg_color: Some(
+                Rgb {
+                    r: 0,
+                    g: 255,
+                    b: 0,
+                },
+            ),
+        },
+    },
+    obj_id: 1,
+}
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 5,
+        y: 6,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 5,
+            y: 5,
+        },
+        p2: Point {
+            x: 8,
+            y: 8,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 1,
+        layer: 1,
+        screen_layer: 0,
+        chr: TerminalChar {
+            chr: 'C',
+            fg_color: None,
+            bg_color: None,
+        },
+    },
+    obj_id: 1,
+}
+[INFO] - ltrender::draw::terminal_buffer - save draw info: SaveDrawInfo {
+    draw_pos: Point {
+        x: 6,
+        y: 6,
+    },
+    bounding_box: Rect {
+        p1: Point {
+            x: 5,
+            y: 5,
+        },
+        p2: Point {
+            x: 8,
+            y: 8,
+        },
+    },
+    info: CharacterInfo {
+        display_id: 1,
+        layer: 1,
+        screen_layer: 0,
+        chr: TerminalChar {
+            chr: 'D',
+            fg_color: None,
+            bg_color: None,
+        },
+    },
+    obj_id: 1,
+}

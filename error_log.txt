@@ -1,0 +1,62 @@
+   Compiling ltrender v0.1.0 (/home/smon/c/g/ltrender)
+warning: unused import: `Point`
+  --> src/draw/mod.rs:14:19
+   |
+14 | use common_stdx::{Point, Rect};
+   |                   ^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `DrawObjectType`
+ --> src/main.rs:7:17
+  |
+7 |     DrawObject, DrawObjectType, Renderer, SpriteDrawable, SpriteObject, init_terminal,
+  |                 ^^^^^^^^^^^^^^
+
+error[E0061]: this method takes 5 arguments but 4 arguments were supplied
+   --> src/draw/mod.rs:100:23
+    |
+100 |         screen_buffer.add_to_buffer(&obj, self.layer, &self.area, sprites);
+    |                       ^^^^^^^^^^^^^                   ---------- argument #3 of type `usize` is missing
+    |
+note: method defined here
+   --> src/draw/screen_buffer/mod.rs:58:12
+    |
+58  |     pub fn add_to_buffer(
+    |            ^^^^^^^^^^^^^
+...
+62  |         screen_layer: usize,
+    |         -------------------
+help: provide the argument
+    |
+100 |         screen_buffer.add_to_buffer(&obj, self.layer, /* usize */, &self.area, sprites);
+    |                                                       ++++++++++++
+
+error[E0061]: this method takes 5 arguments but 4 arguments were supplied
+   --> src/draw/mod.rs:161:22
+    |
+161 |                     .remove_from_buffer(&old_obj, s.layer, &s.area, &self.sprites);
+    |                      ^^^^^^^^^^^^^^^^^^                    ------- argument #3 of type `usize` is missing
+    |
+note: method defined here
+   --> src/draw/screen_buffer/mod.rs:72:12
+    |
+72  |     pub fn remove_from_buffer(
+    |            ^^^^^^^^^^^^^^^^^^
+...
+76  |         screen_layer: usize,
+    |         -------------------
+help: provide the argument
+    |
+161 |                     .remove_from_buffer(&old_obj, s.layer, /* usize */, &s.area, &self.sprites);
+    |                                                            ++++++++++++
+
+warning: unused import: `Write`
+ --> src/draw/term_utils.rs:6:23
+  |
+6 | use std::io::{Result, Write, stdout};
+  |                       ^^^^^
+
+For more information about this error, try `rustc --explain E0061`.
+warning: `ltrender` (bin "ltrender") generated 3 warnings
+error: could not compile `ltrender` (bin "ltrender") due to 2 previous errors; 3 warnings emitted
