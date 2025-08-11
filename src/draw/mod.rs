@@ -4,7 +4,7 @@ pub use sprite_structs::{CharacterInfo, CharacterInfoList};
 pub mod update_interval_handler;
 pub use update_interval_handler::{UpdateInterval, UpdateIntervalHandler};
 pub mod terminal_buffer;
-pub use terminal_buffer::{ScreenBuffer, drawables::SpriteDrawable};
+pub use terminal_buffer::{ScreenBuffer, SpriteDrawable};
 pub mod all_sprites;
 pub use all_sprites::{AllSprites, SpriteObject, SpriteObjectType};
 pub mod term_utils;

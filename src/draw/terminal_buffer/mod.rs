@@ -2,8 +2,10 @@ use crate::draw::{
     AllSprites, CharacterInfo, CharacterInfoList, DrawError, DrawObject, ObjId,
     UpdateIntervalHandler,
 };
-pub mod drawables;
-pub use drawables::Drawable;
+pub mod drawable;
+pub use drawable::Drawable;
+pub mod standard_drawables;
+pub use standard_drawables::SpriteDrawable;
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
@@ -95,14 +97,40 @@ impl ScreenBuffer {
         &mut self,
         obj: &DrawObject,
         obj_id: ObjId,
-        screen_layer: usize,
         screen_bounds: &Rect<u16>,
         sprites: &AllSprites,
     ) {
         let drawable = &obj.drawable;
+
         let update_map = drawable.bounding_iv(sprites);
-        self.update_handler.add_update_hash(update_map);
-        // todo add removing to the trait
+        self.update_handler.add_update_hash(update_map.clone());
+
+        let (cols, rows) = self.size;
+        for (&y, ivs) in &update_map {
+            if y < screen_bounds.p1.y || y >= screen_bounds.p2.y || y >= rows {
+                continue;
+            }
+            let y_usize = y as usize;
+
+            for iv in ivs {
+                let (x_start, x_end) = iv.interval;
+
+                let xs = x_start.max(screen_bounds.p1.x);
+                let xe = x_end.min(screen_bounds.p2.x);
+
+                if xs >= xe {
+                    continue;
+                }
+
+                for x in xs..xe {
+                    if x >= cols {
+                        continue;
+                    }
+                    let idx = y_usize * (cols as usize) + (x as usize);
+                    self.info_screen[idx].info.remove(&obj_id);
+                }
+            }
+        }
     }
 
     pub fn save_draw_to_buffer(&mut self, sd: SaveDrawInfo) {
