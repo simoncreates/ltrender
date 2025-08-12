@@ -30,10 +30,10 @@ pub enum FileError {
 #[derive(Debug, Error)]
 pub enum DrawError {
     #[error("Screen with id {0} not found")]
-    ScreenNotFound(usize),
+    DisplayKeyNotFound(usize),
 
     #[error("Object {obj_id} not found on screen {screen_id}")]
-    ObjectNotFound { screen_id: usize, obj_id: usize },
+    DrawableHandleNotFound { screen_id: usize, obj_id: usize },
 
     #[error("Sprite {0} not found")]
     SpriteNotFound(SpriteId),

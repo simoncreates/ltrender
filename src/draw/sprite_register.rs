@@ -1,49 +1,51 @@
 use ascii_assets::{AsciiSprite, AsciiVideo};
+use log::info;
 #[derive(Clone, Debug)]
-pub enum SpriteObjectType {
+pub enum SpriteData {
     Sprite(AsciiSprite),
     SpriteVideo(AsciiVideo),
 }
 
 #[derive(Clone, Debug)]
-pub struct SpriteObject {
-    pub(crate) info: SpriteObjectType,
+pub struct SpriteEntry {
+    pub(crate) info: SpriteData,
 }
 
-impl SpriteObject {
+impl SpriteEntry {
     pub fn size(&self) -> (usize, usize, usize) {
         match &self.info {
-            SpriteObjectType::Sprite(sprite) => {
+            SpriteData::Sprite(sprite) => {
                 let frames = 1;
                 let height = sprite.height;
                 let width = sprite.width;
                 (frames, height as usize, width as usize)
             }
-            SpriteObjectType::SpriteVideo(video) => video.size(),
+            SpriteData::SpriteVideo(video) => video.size(),
         }
     }
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct AllSprites {
-    pub sprites: Vec<SpriteObject>,
+#[derive(Clone, Debug, Default)]
+pub struct SpriteRegistry {
+    pub sprites: Vec<SpriteEntry>,
 }
 
-impl AllSprites {
+impl SpriteRegistry {
     pub fn new() -> Self {
-        AllSprites {
+        info!("Creating a new AllSprites");
+        SpriteRegistry {
             sprites: Vec::new(),
         }
     }
 
-    pub fn add(&mut self, obj: SpriteObject) -> usize {
+    pub fn add(&mut self, obj: SpriteEntry) -> usize {
         let idx = self.sprites.len();
         self.sprites.push(obj);
 
         idx
     }
 
-    pub fn get(&self, id: &usize) -> Option<&SpriteObject> {
+    pub fn get(&self, id: &usize) -> Option<&SpriteEntry> {
         self.sprites.get(*id)
     }
 }

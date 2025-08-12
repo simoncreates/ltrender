@@ -1,4 +1,6 @@
-use crate::draw::{AllSprites, DrawError, SpriteId, SpriteObjectType, UpdateInterval};
+use crate::draw::{
+    SpriteRegistry, DrawError, UpdateInterval, update_interval_handler::UpdateIntervalType,
+};
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
@@ -9,7 +11,10 @@ pub fn convert_rect_to_update_intervals(rect: Rect<u16>) -> HashMap<u16, Vec<Upd
     let iv = (rect.p1.x, rect.p2.x);
 
     for y in rect.p1.y..rect.p2.y {
-        let intv = UpdateInterval { interval: iv };
+        let intv = UpdateInterval {
+            interval: iv,
+            iv_type: UpdateIntervalType::Optimized,
+        };
         intervals.entry(y).or_default().push(intv);
     }
     intervals
@@ -53,7 +58,7 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send + Sync {
     /// let sprite = SpriteDrawable { position: Point::new(0, 0), sprite_id: 1 };
     /// let draws = sprite.draw(&all_sprites).unwrap();
     /// ```
-    fn draw(&self, sprites: &AllSprites) -> Result<Vec<BasicDraw>, DrawError>;
+    fn draw(&self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError>;
 
     /// Return a map of update intervals keyed by row.
     ///
@@ -67,7 +72,7 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send + Sync {
     /// ```rust
     /// let intervals = sprite.bounding_iv(&all_sprites);
     /// ```
-    fn bounding_iv(&self, sprites: &AllSprites) -> HashMap<u16, Vec<UpdateInterval>>;
+    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>>;
 
     /// Return **a new** drawable that has been shifted by the given offset.
     ///

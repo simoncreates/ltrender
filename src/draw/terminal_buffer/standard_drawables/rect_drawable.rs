@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use crate::draw::{
-    AllSprites, DrawError, UpdateInterval,
+    SpriteRegistry, DrawError, UpdateInterval,
     terminal_buffer::{
         Drawable,
         drawable::{BasicDraw, convert_rect_to_update_intervals},
     },
+    update_interval_handler::UpdateIntervalType,
 };
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
@@ -19,7 +20,7 @@ pub struct RectDrawable {
 }
 
 impl Drawable for RectDrawable {
-    fn draw(&self, _sprites: &AllSprites) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         if self.rect.p1.x > self.rect.p2.x || self.rect.p1.y > self.rect.p2.y {
             return Ok(Vec::new());
         }
@@ -57,7 +58,7 @@ impl Drawable for RectDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &AllSprites) -> HashMap<u16, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
         if self.border_thickness == 0 {
             return HashMap::new();
         }
@@ -84,6 +85,7 @@ impl Drawable for RectDrawable {
             if start < end_exclusive {
                 map.entry(y).or_default().push(UpdateInterval {
                     interval: (start, end_exclusive),
+                    iv_type: UpdateIntervalType::Optimized,
                 });
             }
         }
@@ -130,7 +132,7 @@ impl Drawable for RectDrawable {
             },
             border_thickness: self.border_thickness,
             border_style: self.border_style,
-            fill_style: self.fill_style.clone(),
+            fill_style: self.fill_style,
         })
     }
 }

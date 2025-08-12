@@ -1,33 +1,50 @@
 use common_stdx::Rect;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum UpdateIntervalType {
+    Forced,
+    Optimized,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct UpdateInterval {
     pub interval: (u16, u16),
+    pub iv_type: UpdateIntervalType,
 }
-#[derive(Debug)]
+
+#[derive(Debug, Default)]
 pub struct UpdateIntervalHandler {
     pub intervals: HashMap<u16, Vec<UpdateInterval>>,
 }
 
 impl UpdateIntervalHandler {
     pub fn new() -> Self {
-        UpdateIntervalHandler {
-            intervals: HashMap::new(),
-        }
+        Self::default()
     }
 
-    pub fn add_update_rect(&mut self, rect: Rect<u16>) {
-        let iv = (rect.p1.x, rect.p2.x);
+    pub fn register_redraw_region(&mut self, rect: Rect<u16>, iv_type: UpdateIntervalType) {
+        let interval = (rect.p1.x, rect.p2.x);
 
         for y in rect.p1.y..rect.p2.y {
-            let intv = UpdateInterval { interval: iv };
-            self.intervals.entry(y).or_default().push(intv);
+            let upd = UpdateInterval { interval, iv_type };
+            self.intervals.entry(y).or_default().push(upd);
         }
     }
-    pub fn add_update_hash(&mut self, hash: HashMap<u16, Vec<UpdateInterval>>) {
-        for (y, intervals) in hash {
-            self.intervals.entry(y).or_default().extend(intervals);
+
+    pub fn merge_redraw_regions(&mut self, hash: HashMap<u16, Vec<UpdateInterval>>) {
+        for (y, ivs) in hash.into_iter() {
+            let entry = self.intervals.entry(y).or_default();
+            entry.extend(ivs);
+        }
+    }
+
+    pub fn invalidate_entire_screen(&mut self, terminal_size: (u16, u16)) {
+        for y in 0..terminal_size.1 {
+            self.intervals.entry(y).or_default().push(UpdateInterval {
+                interval: (0, terminal_size.0),
+                iv_type: UpdateIntervalType::Forced,
+            });
         }
     }
     pub fn merge_intervals(&mut self) {
@@ -35,27 +52,30 @@ impl UpdateIntervalHandler {
             if intervals.len() <= 1 {
                 continue;
             }
+            intervals.sort_by_key(|iv| (iv.interval.0, iv.iv_type));
 
-            // sort intervals by x pos
-            intervals.sort_by_key(|iv| iv.interval.0);
-
-            let mut merged = Vec::new();
+            let mut merged: Vec<UpdateInterval> = Vec::new();
             let mut current = intervals[0];
 
             for iv in intervals.iter().skip(1) {
+                if iv.iv_type != current.iv_type {
+                    merged.push(current);
+                    current = *iv;
+                    continue;
+                }
+
                 let (_, cur_end) = current.interval;
                 let (new_start, new_end) = iv.interval;
 
                 if new_start <= cur_end {
                     current.interval.1 = cur_end.max(new_end);
                 } else {
-                    // no overlap, push and start a new one
                     merged.push(current);
                     current = *iv;
                 }
             }
-            merged.push(current);
 
+            merged.push(current);
             *intervals = merged;
         }
     }

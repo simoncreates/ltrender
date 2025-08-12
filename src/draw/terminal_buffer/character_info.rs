@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use ascii_assets::TerminalChar;
 
-use super::ObjId;
+use crate::draw::DrawableHandle;
 
 #[derive(Clone, Debug, Copy)]
 pub struct CharacterInfo {
-    pub display_id: ObjId,
+    pub display_id: DrawableHandle,
     pub layer: usize,
     pub screen_layer: usize,
     pub chr: TerminalChar,
@@ -14,5 +14,5 @@ pub struct CharacterInfo {
 
 #[derive(Clone, Debug)]
 pub struct CharacterInfoList {
-    pub info: HashMap<ObjId, CharacterInfo>,
+    pub info: HashMap<DrawableHandle, CharacterInfo>,
 }

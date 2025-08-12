@@ -2,10 +2,9 @@ use std::collections::HashMap;
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
-use log::info;
 
 use crate::draw::{
-    AllSprites, DrawError, UpdateInterval,
+    SpriteRegistry, DrawError, UpdateInterval,
     terminal_buffer::{
         Drawable,
         drawable::{BasicDraw, convert_rect_to_update_intervals},
@@ -20,7 +19,7 @@ pub struct LineDrawable {
 }
 
 impl Drawable for LineDrawable {
-    fn draw(&self, _sprites: &AllSprites) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         let mut x0 = self.start.x as i32;
         let mut y0 = self.start.y as i32;
         let x1 = self.end.x as i32;
@@ -60,12 +59,10 @@ impl Drawable for LineDrawable {
             }
         }
 
-        info!("drew line with result: {:#?}", out);
-
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &AllSprites) -> HashMap<u16, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
         let min_x = self.start.x.min(self.end.x);
         let max_x = self.start.x.max(self.end.x);
         let min_y = self.start.y.min(self.end.y);

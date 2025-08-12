@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use common_stdx::{Point, Rect};
 
 use crate::draw::{
-    AllSprites, DrawError, SpriteId, SpriteObjectType, UpdateInterval,
+    SpriteRegistry, DrawError, SpriteId, SpriteData, UpdateInterval,
     terminal_buffer::{
         Drawable,
         drawable::{BasicDraw, convert_rect_to_update_intervals},
@@ -17,14 +17,13 @@ pub struct SpriteDrawable {
 }
 
 impl Drawable for SpriteDrawable {
-    fn draw(&self, sprites: &AllSprites) -> Result<Vec<BasicDraw>, DrawError> {
-        let sprite = match sprites.get(&self.sprite_id) {
-            Some(s) => s,
-            None => return Err(DrawError::SpriteNotFound(self.sprite_id)),
-        };
+    fn draw(&self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+        let sprite = sprites
+            .get(&self.sprite_id)
+            .ok_or(DrawError::SpriteNotFound(self.sprite_id))?;
 
         match &sprite.info {
-            SpriteObjectType::Sprite(content) => {
+            SpriteData::Sprite(content) => {
                 let width = content.width as usize;
                 let origin_x = self.position.x;
                 let origin_y = self.position.y;
@@ -44,13 +43,13 @@ impl Drawable for SpriteDrawable {
                 }
                 Ok(out)
             }
-            SpriteObjectType::SpriteVideo(content) => {
+            SpriteData::SpriteVideo(_content) => {
                 unimplemented!("Sprite video rendering not implemented yet");
             }
         }
     }
 
-    fn bounding_iv(&self, sprites: &AllSprites) -> HashMap<u16, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
         let size = sprites
             .get(&self.sprite_id)
             .map(|s| s.size())
