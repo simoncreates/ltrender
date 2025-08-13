@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 
 use crate::draw::{
-    SpriteRegistry, DrawError, UpdateInterval,
+    DrawError, SpriteRegistry, UpdateInterval,
     terminal_buffer::{
         Drawable,
         drawable::{BasicDraw, convert_rect_to_update_intervals},
@@ -19,6 +19,12 @@ pub struct LineDrawable {
 }
 
 impl Drawable for LineDrawable {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
     fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         let mut x0 = self.start.x as i32;
         let mut y0 = self.start.y as i32;

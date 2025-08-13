@@ -1,14 +1,14 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::draw::{
-    DrawError, DrawObject, DrawableHandle, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
+    self, DrawError, DrawObject, DrawableId, SpriteRegistry, UpdateInterval,
+    UpdateIntervalHandler,
     terminal_buffer::{CharacterInfo, CharacterInfoList},
 };
 use common_stdx::Rect;
 
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
-use log::info;
 
 /// Trait that describes how to write a single character and flush the
 /// underlying output device.
@@ -54,16 +54,16 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
     fn add_to_buffer(
         &mut self,
         obj: &DrawObject,
-        obj_id: DrawableHandle,
+        obj_id: DrawableId,
         screen_layer: usize,
         bounds: &Rect<u16>,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError> {
-        info!("Adding object to buffer: {:?}", obj_id);
-        let map = obj.drawable.bounding_iv(sprites);
+        let drawable = obj.drawable.lock().unwrap();
+        let map = drawable.bounding_iv(sprites);
         self.merge_intervals(map);
 
-        for rd in obj.drawable.draw(sprites)? {
+        for rd in drawable.draw(sprites)? {
             if !bounds.contains(rd.pos) {
                 continue;
             }
@@ -89,10 +89,11 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
     fn remove_from_buffer(
         &mut self,
         obj: &DrawObject,
-        obj_id: DrawableHandle,
+        obj_id: DrawableId,
         sprites: &SpriteRegistry,
     ) {
-        let map = obj.drawable.bounding_iv(sprites);
+        let drawable = obj.drawable.lock().unwrap();
+        let map = drawable.bounding_iv(sprites);
         self.merge_intervals(map.clone());
 
         for ci in self.cell_info_mut() {

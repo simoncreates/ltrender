@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::{any::Any, cell::RefCell, collections::HashMap};
 
 use crate::draw::{
-    SpriteRegistry, DrawError, UpdateInterval,
+    DrawError, SpriteRegistry, UpdateInterval,
     terminal_buffer::{
         Drawable,
         drawable::{BasicDraw, convert_rect_to_update_intervals},
@@ -13,36 +13,43 @@ use common_stdx::{Point, Rect};
 
 #[derive(Clone, Debug)]
 pub struct RectDrawable {
-    pub rect: Rect<u16>,
-    pub border_thickness: u16,
-    pub border_style: TerminalChar,
-    pub fill_style: Option<TerminalChar>,
+    pub rect: RefCell<Rect<u16>>,
+    pub border_thickness: RefCell<u16>,
+    pub border_style: RefCell<TerminalChar>,
+    pub fill_style: RefCell<Option<TerminalChar>>,
 }
 
 impl Drawable for RectDrawable {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
     fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
-        if self.rect.p1.x > self.rect.p2.x || self.rect.p1.y > self.rect.p2.y {
+        let rect = self.rect.borrow();
+
+        if rect.p1.x > rect.p2.x || rect.p1.y > rect.p2.y {
             return Ok(Vec::new());
         }
 
         let mut out = Vec::with_capacity(
-            ((self.rect.p2.x - self.rect.p1.x + 1) as usize)
-                * ((self.rect.p2.y - self.rect.p1.y + 1) as usize),
+            ((rect.p2.x - rect.p1.x + 1) as usize) * ((rect.p2.y - rect.p1.y + 1) as usize),
         );
 
-        for y in self.rect.p1.y..=self.rect.p2.y {
-            for x in self.rect.p1.x..=self.rect.p2.x {
-                let left = x - self.rect.p1.x;
-                let right = self.rect.p2.x - x;
-                let top = y - self.rect.p1.y;
-                let bottom = self.rect.p2.y - y;
+        for y in rect.p1.y..=rect.p2.y {
+            for x in rect.p1.x..=rect.p2.x {
+                let left = x - rect.p1.x;
+                let right = rect.p2.x - x;
+                let top = y - rect.p1.y;
+                let bottom = rect.p2.y - y;
 
                 let min_dist = *[left, right, top, bottom].iter().min().unwrap();
 
-                let chr = if min_dist < self.border_thickness {
-                    self.border_style
+                let chr = if min_dist < self.border_thickness.borrow().clone() {
+                    self.border_style.borrow().clone()
                 } else {
-                    match self.fill_style {
+                    match self.fill_style.borrow().clone() {
                         Some(ch) => ch,
                         None => continue,
                     }
@@ -59,23 +66,23 @@ impl Drawable for RectDrawable {
     }
 
     fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
-        if self.border_thickness == 0 {
+        if self.border_thickness.borrow().clone() == 0 {
             return HashMap::new();
         }
 
-        if self.fill_style.is_some() {
+        if self.fill_style.borrow().is_some() {
+            let rect = self.rect.borrow();
             return convert_rect_to_update_intervals(Rect {
-                p1: self.rect.p1,
+                p1: rect.p1,
                 p2: Point {
-                    x: self.rect.p2.x.saturating_add(1),
-                    y: self.rect.p2.y.saturating_add(1),
+                    x: rect.p2.x.saturating_add(1),
+                    y: rect.p2.y.saturating_add(1),
                 },
             });
         }
 
         let mut intervals = HashMap::new();
 
-        let t = self.border_thickness;
         fn push_interval(
             map: &mut HashMap<u16, Vec<UpdateInterval>>,
             y: u16,
@@ -90,26 +97,23 @@ impl Drawable for RectDrawable {
             }
         }
 
-        for y in self.rect.p1.y..=self.rect.p2.y {
-            let is_top = y < self.rect.p1.y + t;
-            let is_bottom = y > self.rect.p2.y - t;
+        let t = self.border_thickness.borrow().clone();
+        let rect = self.rect.borrow().clone();
+        for y in rect.p1.y..=rect.p2.y {
+            let is_top = y < rect.p1.y + t;
+            let is_bottom = y > rect.p2.y - t;
 
             if is_top || is_bottom {
-                push_interval(
-                    &mut intervals,
-                    y,
-                    self.rect.p1.x,
-                    self.rect.p2.x.saturating_add(1),
-                );
+                push_interval(&mut intervals, y, rect.p1.x, rect.p2.x.saturating_add(1));
                 continue;
             }
 
-            let left_start = self.rect.p1.x;
-            let left_end = (self.rect.p1.x + t).min(self.rect.p2.x.saturating_add(1));
+            let left_start = rect.p1.x;
+            let left_end = (rect.p1.x + t).min(rect.p2.x.saturating_add(1));
 
-            let right_start_opt = self.rect.p2.x.checked_sub(t - 1);
+            let right_start_opt = rect.p2.x.checked_sub(t - 1);
             if let Some(right_start) = right_start_opt {
-                let right_end = self.rect.p2.x.saturating_add(1);
+                let right_end = rect.p2.x.saturating_add(1);
                 if left_start < right_start {
                     push_interval(&mut intervals, y, left_start, left_end);
                     push_interval(&mut intervals, y, right_start, right_end);
@@ -126,13 +130,13 @@ impl Drawable for RectDrawable {
 
     fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable> {
         Box::new(RectDrawable {
-            rect: Rect {
-                p1: self.rect.p1 + offset,
-                p2: self.rect.p2 + offset,
-            },
-            border_thickness: self.border_thickness,
-            border_style: self.border_style,
-            fill_style: self.fill_style,
+            rect: RefCell::new(Rect {
+                p1: self.rect.borrow().p1 + offset,
+                p2: self.rect.borrow().p2 + offset,
+            }),
+            border_thickness: RefCell::new(self.border_thickness.borrow().clone()),
+            border_style: RefCell::new(self.border_style.borrow().clone()),
+            fill_style: RefCell::new(self.fill_style.borrow().clone()),
         })
     }
 }

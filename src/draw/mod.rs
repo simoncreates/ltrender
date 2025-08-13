@@ -1,5 +1,5 @@
 pub mod renderer;
-pub use renderer::{DrawableHandle, Renderer, SpriteId};
+pub use renderer::{DrawableId, Renderer, SpriteId};
 pub mod update_interval_handler;
 pub use update_interval_handler::{UpdateInterval, UpdateIntervalHandler};
 pub mod terminal_buffer;

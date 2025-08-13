@@ -4,7 +4,7 @@ use crate::draw::{
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
-use std::collections::HashMap;
+use std::{any::Any, collections::HashMap};
 
 pub fn convert_rect_to_update_intervals(rect: Rect<u16>) -> HashMap<u16, Vec<UpdateInterval>> {
     let mut intervals: HashMap<u16, Vec<UpdateInterval>> = HashMap::new();
@@ -39,7 +39,7 @@ where
     }
 }
 
-pub trait Drawable: Cloneable + std::fmt::Debug + Send + Sync {
+pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     /// Render this object into a list of terminal cells.
     ///
     /// The method should not perform any clipping, layering or buffer
@@ -104,6 +104,9 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send + Sync {
     /// assert_eq!(shifted.position(), Point::new(10, 5));
     /// ```
     fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable>;
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 impl Clone for Box<dyn Drawable> {

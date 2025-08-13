@@ -29,6 +29,14 @@ pub enum FileError {
 
 #[derive(Debug, Error)]
 pub enum DrawError {
+    #[error("Wrong drawable type: expected `{expected}`, found `{found}`")]
+    WrongDrawableType {
+        expected: &'static str,
+        found: &'static str,
+    },
+    #[error("Failed to lock drawable")]
+    DrawableLockFailed,
+
     #[error("Screen with id {0} not found")]
     DisplayKeyNotFound(usize),
 
