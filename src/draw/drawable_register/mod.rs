@@ -19,7 +19,6 @@ pub struct DrawObjectLibrary {
 
 impl DrawObjectLibrary {
     pub fn new() -> Self {
-        info!("Creating a new DrawObjectLibrary");
         Self {
             all_objects: HashMap::new(),
         }

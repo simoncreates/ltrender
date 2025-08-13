@@ -50,7 +50,7 @@ fn main() -> Result<(), AppError> {
         layer: 0,
         drawable: Box::new(RectDrawable {
             rect: Rect::from_coords(0, 0, 500, 500),
-            border_thickness: 0,
+            border_thickness: 3,
             border_style: TerminalChar {
                 chr: '#',
                 fg_color: Some(Color::White),

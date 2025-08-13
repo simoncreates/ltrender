@@ -1,5 +1,4 @@
 use ascii_assets::{AsciiSprite, AsciiVideo};
-use log::info;
 #[derive(Clone, Debug)]
 pub enum SpriteData {
     Sprite(AsciiSprite),
@@ -32,7 +31,6 @@ pub struct SpriteRegistry {
 
 impl SpriteRegistry {
     pub fn new() -> Self {
-        info!("Creating a new AllSprites");
         SpriteRegistry {
             sprites: Vec::new(),
         }

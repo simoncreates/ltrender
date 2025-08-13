@@ -1,5 +1,5 @@
 use crate::draw::{
-    SpriteRegistry, DrawError, UpdateInterval, update_interval_handler::UpdateIntervalType,
+    DrawError, SpriteRegistry, UpdateInterval, update_interval_handler::UpdateIntervalType,
 };
 
 use ascii_assets::TerminalChar;
@@ -44,13 +44,7 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send + Sync {
     ///
     /// The method should not perform any clipping, layering or buffer
     /// management; it only needs to return the raw `(pos, chr)` pairs that
-    /// represent what would be drawn on screen.  Implementations are free
-    /// to query `sprites` for additional information such as sprite size.
-    ///
-    /// ## Errors
-    ///
-    /// A `DrawError` is returned if something goes wrong while resolving the
-    /// sprite data (e.g., missing sprite).
+    /// represent what would be drawn on screen.
     ///
     /// ## Example
     ///
@@ -65,19 +59,28 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send + Sync {
     /// Each entry tells the renderer which horizontal segments of a given
     /// row need to be refreshed because this object occupies that area.
     /// Implementations typically call `convert_rect_to_update_intervals` with
-    /// the sprite's bounding rectangle.
+    /// the drawable's bounding rectangle.
     ///
     /// ## Example
     ///
     /// ```rust
-    /// let intervals = sprite.bounding_iv(&all_sprites);
+    /// let size = sprites
+    ///     .get(&self.sprite_id)
+    ///     .map(|s| s.size())
+    ///     .unwrap_or((0, 0, 0));
+    /// convert_rect_to_update_intervals(Rect {
+    ///     p1: self.position,
+    ///     p2: Point {
+    ///         x: self.position.x + size.1 as u16,
+    ///         y: self.position.y + size.2 as u16,
+    ///     },
+    /// })
     /// ```
     fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>>;
 
     /// Return **a new** drawable that has been shifted by the given offset.
     ///
-    /// The returned value is boxed as a trait object because the concrete
-    /// type may differ between implementations.
+    /// The returned value is boxed as a trait object
     ///
     /// ## Parameters
     ///

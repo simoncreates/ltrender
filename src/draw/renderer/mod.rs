@@ -1,34 +1,42 @@
 use ascii_assets::AsciiVideo;
 use common_stdx::{Point, Rect};
+use log::info;
 use std::collections::HashMap;
 
+use crate::draw::ScreenBuffer;
 use crate::draw::{
-    DrawError, DrawObject, DrawObjectLibrary, DrawableKey, FileError, Screen, ScreenBuffer,
-    ScreenKey, SpriteData, SpriteDrawable, SpriteEntry, SpriteRegistry, error::AppError,
+    DrawError, DrawObject, DrawObjectLibrary, DrawableKey, FileError, Screen, ScreenKey,
+    SpriteData, SpriteDrawable, SpriteEntry, SpriteRegistry, error::AppError,
     terminal_buffer::CrosstermScreenBuffer,
-};
+}; // bring the trait into scope
 
 pub type SpriteId = usize;
 pub type DrawableHandle = usize;
-
-#[derive(Debug)]
-pub struct Renderer {
+pub struct Renderer<B = CrosstermScreenBuffer>
+where
+    B: ScreenBuffer,
+{
     screens: HashMap<ScreenKey, Screen>,
     obj_library: DrawObjectLibrary,
-    screen_buffer: Box<dyn ScreenBuffer>,
+    screen_buffer: B,
     pub sprites: SpriteRegistry,
 }
 
-impl Renderer {
+impl<B> Renderer<B>
+where
+    B: ScreenBuffer,
+{
+    /// Create a new renderer with an initial terminal size.
     pub fn create_renderer(size: (u16, u16)) -> Self {
         Renderer {
             obj_library: DrawObjectLibrary::new(),
             screens: HashMap::new(),
-            screen_buffer: Box::new(CrosstermScreenBuffer::new(size)),
+            screen_buffer: B::new(size),
             sprites: SpriteRegistry::new(),
         }
     }
 
+    /// Create a new screen and return its key.
     pub fn create_screen(&mut self, rect: Rect<u16>, layer: usize) -> ScreenKey {
         let new_id = self.generate_screen_key();
         self.screens
@@ -36,6 +44,7 @@ impl Renderer {
         new_id
     }
 
+    /// Register a drawable object on a screen.
     pub fn register_drawable(
         &mut self,
         screen_id: ScreenKey,
@@ -50,6 +59,7 @@ impl Renderer {
         }
     }
 
+    /// Register a sprite drawable on a screen.
     pub fn register_sprite_drawable(
         &mut self,
         screen_id: ScreenKey,
@@ -67,6 +77,7 @@ impl Renderer {
         self.register_drawable(screen_id, obj)
     }
 
+    /// Load a sprite from an ASCII video file.
     pub fn register_sprite_from_source(
         &mut self,
         path: &str,
@@ -91,8 +102,10 @@ impl Renderer {
         Ok(sprite_id)
     }
 
+    /// Render a single drawable object.
     pub fn render_drawable(&mut self, id: DrawableKey) -> Result<(), DrawError> {
         if let Some(s) = self.screens.get_mut(&id.0) {
+            info!("Rendering drawable with id: {:?}", id);
             s.render_drawable(
                 id.1,
                 &mut self.screen_buffer,
@@ -106,6 +119,7 @@ impl Renderer {
         }
     }
 
+    /// Render all objects on all screens.
     pub fn render_all(&mut self) -> Result<(), DrawError> {
         for screen in self.screens.values_mut() {
             screen.render_all(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
@@ -115,17 +129,19 @@ impl Renderer {
     }
 
     pub fn handle_resize(&mut self, new_size: (u16, u16)) -> Result<(), DrawError> {
-        self.screen_buffer = Box::new(CrosstermScreenBuffer::new(new_size));
-        self.screen_buffer.mark_all_dirty(new_size);
+        self.screen_buffer = B::new(new_size);
+        B::mark_all_dirty(&mut self.screen_buffer, new_size);
         self.render_all()?;
         Ok(())
     }
 
+    /// Flush the buffer to the terminal.
     pub fn refresh(&mut self) -> Result<(), DrawError> {
-        self.screen_buffer.update_terminal()?;
+        B::update_terminal(&mut self.screen_buffer)?;
         Ok(())
     }
 
+    /// Generate a unique screen key.
     pub fn generate_screen_key(&self) -> ScreenKey {
         let mut id = self.screens.len();
         while self.screens.contains_key(&id) {
