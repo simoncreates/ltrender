@@ -17,6 +17,7 @@ mod temp_sprite_creation;
 use temp_sprite_creation::generate_sprites;
 
 use crate::draw::error::AppError;
+use crate::draw::renderer::RenderMode;
 use crate::draw::terminal_buffer::{CrosstermScreenBuffer, LineDrawable};
 use crate::draw::{DrawObject, SpriteDrawable};
 
@@ -30,6 +31,7 @@ fn main() -> Result<(), AppError> {
     let term_size = size()?;
     let mut r = Renderer::<CrosstermScreenBuffer>::create_renderer(term_size);
     let sprite_id = r.register_sprite_from_source(sprite_path, None)?;
+    r.set_render_mode(RenderMode::Buffered);
 
     let screen_id = r.create_screen(Rect::from_coords(0, 0, term_size.0, term_size.1), 7);
 
@@ -54,12 +56,14 @@ fn main() -> Result<(), AppError> {
             },
         }),
     };
-    let line_id = r.register_drawable(screen_id, line_obj)?;
+    let line_id = r.register_drawable(screen_id, line_obj.clone())?;
+    let line_id_2 = r.register_drawable(screen_id, line_obj)?;
     let obj_id = r.register_drawable(screen_id, obj)?;
 
     let mut running = true;
 
     while running {
+        let start = Instant::now();
         if poll(Duration::from_millis(10))? {
             match read()? {
                 Event::Key(k) => {
@@ -71,13 +75,7 @@ fn main() -> Result<(), AppError> {
                     }
                 }
                 Event::Resize(new_cols, new_rows) => {
-                    let start = Instant::now();
                     r.handle_resize((new_cols, new_rows))?;
-                    let duration = start.elapsed();
-                    info!(
-                        "handling a resize took: {:.3} ms",
-                        duration.as_secs_f64() * 1000.0
-                    );
                 }
                 _ => {}
             }
@@ -92,9 +90,22 @@ fn main() -> Result<(), AppError> {
                 y: rng.gen_range(0..current_size.1),
             },
         )?;
+        r.move_drawable_point(
+            line_id_2,
+            rng.gen_range(0..2),
+            Point {
+                x: rng.gen_range(0..current_size.0),
+                y: rng.gen_range(0..current_size.1),
+            },
+        )?;
         r.render_drawable(line_id)?;
+        r.render_drawable(line_id_2)?;
         r.render_drawable(obj_id)?;
-        thread::sleep(Duration::from_millis(30));
+        let duration = start.elapsed();
+        info!(
+            "handling drawing took: {:.3} ms",
+            duration.as_secs_f64() * 1000.0
+        );
         r.render_frame()?;
     }
     restore_terminal()?;

@@ -1,6 +1,5 @@
 use ascii_assets::AsciiVideo;
 use common_stdx::{Point, Rect};
-use log::info;
 use std::collections::HashMap;
 
 use crate::draw::ScreenBuffer;
@@ -189,7 +188,7 @@ where
 
     /// Flush the buffer to the terminal.
     pub fn refresh(&mut self, forced: bool) -> Result<(), DrawError> {
-        if RenderMode::Buffered == self.render_mode || forced {
+        if RenderMode::Instant == self.render_mode || forced {
             B::update_terminal(&mut self.screen_buffer)?;
         }
         Ok(())
@@ -213,12 +212,13 @@ where
         id
     }
 
-    pub fn move_drawable_to(
-        &mut self,
-        handle: DrawableKey,
-        new_pos: Point<u16>,
-    ) -> Result<(), DrawError> {
+    /// general update function
+    fn update_drawable<F>(&mut self, handle: DrawableKey, mut update_fn: F) -> Result<(), DrawError>
+    where
+        F: FnMut(&mut dyn Drawable),
+    {
         self.remove_drawable(handle)?;
+
         {
             let obj =
                 self.obj_library
@@ -227,37 +227,36 @@ where
                         screen_id: handle.0,
                         obj_id: handle.1,
                     })?;
+            update_fn(&mut *obj.drawable);
+        }
 
-            let drawable_obj: &mut dyn Drawable = &mut *obj.drawable;
+        if self.render_mode == RenderMode::Instant {
+            self.render_drawable(handle)?;
+        }
 
-            if let Some(dp) = drawable_obj.as_double_pointed_mut() {
+        Ok(())
+    }
+
+    pub fn move_drawable_to(
+        &mut self,
+        handle: DrawableKey,
+        new_pos: Point<u16>,
+    ) -> Result<(), DrawError> {
+        self.update_drawable(handle, |drawable| {
+            if let Some(dp) = drawable.as_double_pointed_mut() {
                 let old_start = dp.start();
                 let old_end = dp.end();
-
-                let ox = old_start.x as i32;
-                let oy = old_start.y as i32;
-                let nx = new_pos.x as i32;
-                let ny = new_pos.y as i32;
-
-                let dx = nx - ox;
-                let dy = ny - oy;
-
+                let dx = new_pos.x as i32 - old_start.x as i32;
+                let dy = new_pos.y as i32 - old_start.y as i32;
                 dp.set_start(new_pos);
-                let new_end = Point {
+                dp.set_end(Point {
                     x: (old_end.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
                     y: (old_end.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
-                };
-                dp.set_end(new_end);
-            } else if let Some(sp) = drawable_obj.as_single_pointed_mut() {
+                });
+            } else if let Some(sp) = drawable.as_single_pointed_mut() {
                 sp.set_position(new_pos);
-            } else {
-                info!(
-                    "Drawable {:?} does not implement a point trait; nothing moved",
-                    handle
-                );
             }
-        }
-        Ok(())
+        })
     }
 
     pub fn move_drawable_by(
@@ -266,91 +265,46 @@ where
         dx: i32,
         dy: i32,
     ) -> Result<(), DrawError> {
-        self.remove_drawable(handle)?;
-        {
-            let obj =
-                self.obj_library
-                    .get_mut(&handle)
-                    .ok_or(DrawError::DrawableHandleNotFound {
-                        screen_id: handle.0,
-                        obj_id: handle.1,
-                    })?;
-
-            let drawable_obj: &mut dyn Drawable = &mut *obj.drawable;
-
-            if let Some(dp) = drawable_obj.as_double_pointed_mut() {
+        self.update_drawable(handle, |drawable| {
+            if let Some(dp) = drawable.as_double_pointed_mut() {
                 let start = dp.start();
                 let end = dp.end();
-
-                let new_start = Point {
+                dp.set_start(Point {
                     x: (start.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
                     y: (start.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
-                };
-                let new_end = Point {
+                });
+                dp.set_end(Point {
                     x: (end.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
                     y: (end.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
-                };
-
-                dp.set_start(new_start);
-                dp.set_end(new_end);
-            } else if let Some(sp) = drawable_obj.as_single_pointed_mut() {
+                });
+            } else if let Some(sp) = drawable.as_single_pointed_mut() {
                 let pos = sp.position();
-                let new_pos = Point {
+                sp.set_position(Point {
                     x: (pos.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
                     y: (pos.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
-                };
-                sp.set_position(new_pos);
-            } else {
-                info!(
-                    "Drawable {:?} does not implement a point trait; nothing moved",
-                    handle
-                );
+                });
             }
-        }
-        Ok(())
+        })
     }
 
     pub fn move_drawable_point(
         &mut self,
         handle: DrawableKey,
-        point_index: usize, // 0 => start, 1 => end
+        point_index: usize,
         new_pos: Point<u16>,
     ) -> Result<(), DrawError> {
-        self.remove_drawable(handle)?;
-        {
-            let obj =
-                self.obj_library
-                    .get_mut(&handle)
-                    .ok_or(DrawError::DrawableHandleNotFound {
-                        screen_id: handle.0,
-                        obj_id: handle.1,
-                    })?;
-
-            let drawable_obj: &mut dyn Drawable = &mut *obj.drawable;
-
-            if let Some(dp) = drawable_obj.as_double_pointed_mut() {
+        self.update_drawable(handle, |drawable| {
+            if let Some(dp) = drawable.as_double_pointed_mut() {
                 let clamped = Point {
                     x: (new_pos.x as i32).clamp(0, u16::MAX as i32) as u16,
                     y: (new_pos.y as i32).clamp(0, u16::MAX as i32) as u16,
                 };
-
                 match point_index {
                     0 => dp.set_start(clamped),
                     1 => dp.set_end(clamped),
-                    invalid => {
-                        info!(
-                            "move_drawable_point: invalid point_index {} for {:?}; nothing moved",
-                            invalid, handle
-                        );
-                    }
+                    _ => {}
                 }
-            } else {
-                info!(
-                    "Drawable {:?} does not implement a point trait; nothing moved",
-                    handle
-                );
             }
-        }
-        Ok(())
+        })
     }
 }

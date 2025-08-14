@@ -27,7 +27,6 @@ impl DrawObjectLibrary {
         new_id
     }
 
-    /// returns the old version of the drawable, so it can be properly removed from screen
     pub fn update_drawable(&mut self, id: DrawableKey, new_object: DrawObject) {
         self.all_objects.insert(id, new_object);
     }

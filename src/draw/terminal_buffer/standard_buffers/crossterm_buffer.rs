@@ -3,7 +3,6 @@ use std::{
     io::{Write, stdout},
 };
 
-use ascii_assets::TerminalChar;
 use common_stdx::Point;
 use crossterm::{
     cursor::MoveTo,
@@ -37,20 +36,24 @@ impl ScreenBufferCore for CrosstermScreenBuffer {
 }
 
 impl CellDrawer for CrosstermScreenBuffer {
-    fn set_cell(&mut self, pos: Point<u16>, chr: TerminalChar) {
+    fn set_string(
+        &mut self,
+        pos: Point<u16>,
+        s: &str,
+        fg_color: Option<Color>,
+        bg_color: Option<Color>,
+    ) {
         let mut out = stdout();
-        let fg = chr.fg_color.unwrap_or(Color::Reset);
-        let bg = chr.bg_color.unwrap_or(Color::Reset);
-
         queue!(
             out,
             MoveTo(pos.x, pos.y),
-            SetForegroundColor(fg),
-            SetBackgroundColor(bg),
-            Print(chr.chr)
+            SetForegroundColor(fg_color.unwrap_or(Color::Reset)),
+            SetBackgroundColor(bg_color.unwrap_or(Color::Reset)),
+            Print(s)
         )
         .expect("Failed to write to terminal");
     }
+
     fn flush(&mut self) -> Result<(), DrawError> {
         stdout().flush()?;
         Ok(())
