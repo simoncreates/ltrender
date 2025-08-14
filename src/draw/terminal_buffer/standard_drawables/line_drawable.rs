@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap};
+use std::collections::HashMap;
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
@@ -7,7 +7,7 @@ use crate::draw::{
     DrawError, SpriteRegistry, UpdateInterval,
     terminal_buffer::{
         Drawable,
-        drawable::{BasicDraw, convert_rect_to_update_intervals},
+        drawable::{BasicDraw, DoublePointed, convert_rect_to_update_intervals},
     },
 };
 
@@ -18,12 +18,25 @@ pub struct LineDrawable {
     pub chr: TerminalChar,
 }
 
-impl Drawable for LineDrawable {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl DoublePointed for LineDrawable {
+    fn start(&self) -> Point<u16> {
+        self.start
     }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+    fn end(&self) -> Point<u16> {
+        self.end
+    }
+
+    fn set_start(&mut self, p: Point<u16>) {
+        self.start = p;
+    }
+    fn set_end(&mut self, p: Point<u16>) {
+        self.end = p;
+    }
+}
+
+impl Drawable for LineDrawable {
+    fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
+        Some(self)
     }
     fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         let mut x0 = self.start.x as i32;

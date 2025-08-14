@@ -1,22 +1,25 @@
 pub mod draw;
 
-use ascii_assets::AsciiVideo;
+use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, poll, read};
+use crossterm::style::Color;
 use crossterm::terminal::size;
 use draw::{DrawError, Renderer, init_terminal, restore_terminal};
 use env_logger::Builder;
 use log::info;
+use rand::Rng as _;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::{Duration, Instant};
 mod temp_sprite_creation;
 use temp_sprite_creation::generate_sprites;
 
 use crate::draw::error::AppError;
-use crate::draw::terminal_buffer::CrosstermScreenBuffer;
+use crate::draw::terminal_buffer::{CrosstermScreenBuffer, LineDrawable};
 use crate::draw::{DrawObject, SpriteDrawable};
 
 fn main() -> Result<(), AppError> {
@@ -24,12 +27,13 @@ fn main() -> Result<(), AppError> {
     generate_sprites()?;
     let sprite_path = "assets/debugging/test_video.ascv";
     setup_logger("./log.txt".to_string())?;
+    let mut rng = rand::thread_rng();
 
-    let size = size()?;
-    let mut r = Renderer::<CrosstermScreenBuffer>::create_renderer(size);
+    let term_size = size()?;
+    let mut r = Renderer::<CrosstermScreenBuffer>::create_renderer(term_size);
     let sprite_id = r.register_sprite_from_source(sprite_path, None)?;
 
-    let screen_id = r.create_screen(Rect::from_coords(0, 0, 100, 100), 7);
+    let screen_id = r.create_screen(Rect::from_coords(0, 0, term_size.0, term_size.1), 7);
 
     let layer = 1;
     let position = Point { x: 0, y: 0 };
@@ -40,9 +44,20 @@ fn main() -> Result<(), AppError> {
             sprite_id: RefCell::new(sprite_id),
         }))),
     };
-
-    let obj_id = r.register_drawable(screen_id, obj.clone())?;
-    r.render_drawable(obj_id)?;
+    let line_obj = DrawObject {
+        layer: 100,
+        drawable: Arc::new(Mutex::new(Box::new(LineDrawable {
+            start: Point { x: 0, y: 0 },
+            end: Point { x: 10, y: 10 },
+            chr: TerminalChar {
+                chr: '#',
+                fg_color: Some(Color::Blue),
+                bg_color: Some(Color::Black),
+            },
+        }))),
+    };
+    let line_id = r.register_drawable(screen_id, line_obj)?;
+    let obj_id = r.register_drawable(screen_id, obj)?;
 
     let mut running = true;
 
@@ -54,14 +69,7 @@ fn main() -> Result<(), AppError> {
                         running = false;
                     }
                     if k.code == KeyCode::Right {
-                        r.remove_drawable(obj_id)?;
-                        r.with_drawable(obj_id, |sprite: &mut SpriteDrawable| {
-                            let mut pos = *sprite.position.borrow();
-                            pos.x += 1;
-                            sprite.position.replace(pos);
-                        })?;
-
-                        r.render_drawable(obj_id)?;
+                        r.move_drawable_by(obj_id, 1, 0)?;
                     }
                 }
                 Event::Resize(new_cols, new_rows) => {
@@ -76,6 +84,20 @@ fn main() -> Result<(), AppError> {
                 _ => {}
             }
         }
+        let current_size: (u16, u16) = size()?;
+
+        r.move_drawable_point(
+            line_id,
+            rng.gen_range(0..2),
+            Point {
+                x: rng.gen_range(0..current_size.0),
+                y: rng.gen_range(0..current_size.1),
+            },
+        )?;
+        r.render_drawable(line_id)?;
+        r.render_drawable(obj_id)?;
+        thread::sleep(Duration::from_millis(30));
+        r.render_frame()?;
     }
     restore_terminal()?;
     Ok(())

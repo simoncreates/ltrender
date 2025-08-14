@@ -1,10 +1,10 @@
-use std::{any::Any, cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap};
 
 use crate::draw::{
     DrawError, SpriteRegistry, UpdateInterval,
     terminal_buffer::{
         Drawable,
-        drawable::{BasicDraw, convert_rect_to_update_intervals},
+        drawable::{BasicDraw, DoublePointed, convert_rect_to_update_intervals},
     },
     update_interval_handler::UpdateIntervalType,
 };
@@ -19,12 +19,25 @@ pub struct RectDrawable {
     pub fill_style: RefCell<Option<TerminalChar>>,
 }
 
-impl Drawable for RectDrawable {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl DoublePointed for RectDrawable {
+    fn start(&self) -> Point<u16> {
+        self.rect.borrow().p1
     }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+    fn end(&self) -> Point<u16> {
+        self.rect.borrow().p2
+    }
+
+    fn set_start(&mut self, p: Point<u16>) {
+        self.rect.borrow_mut().p1 = p;
+    }
+    fn set_end(&mut self, p: Point<u16>) {
+        self.rect.borrow_mut().p2 = p;
+    }
+}
+
+impl Drawable for RectDrawable {
+    fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
+        Some(self)
     }
     fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         let rect = self.rect.borrow();
@@ -46,10 +59,10 @@ impl Drawable for RectDrawable {
 
                 let min_dist = *[left, right, top, bottom].iter().min().unwrap();
 
-                let chr = if min_dist < self.border_thickness.borrow().clone() {
-                    self.border_style.borrow().clone()
+                let chr = if min_dist < *self.border_thickness.borrow() {
+                    *self.border_style.borrow()
                 } else {
-                    match self.fill_style.borrow().clone() {
+                    match *self.fill_style.borrow() {
                         Some(ch) => ch,
                         None => continue,
                     }
@@ -66,7 +79,7 @@ impl Drawable for RectDrawable {
     }
 
     fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
-        if self.border_thickness.borrow().clone() == 0 {
+        if *self.border_thickness.borrow() == 0 {
             return HashMap::new();
         }
 
@@ -97,8 +110,8 @@ impl Drawable for RectDrawable {
             }
         }
 
-        let t = self.border_thickness.borrow().clone();
-        let rect = self.rect.borrow().clone();
+        let t = *self.border_thickness.borrow();
+        let rect = *self.rect.borrow();
         for y in rect.p1.y..=rect.p2.y {
             let is_top = y < rect.p1.y + t;
             let is_bottom = y > rect.p2.y - t;
@@ -134,9 +147,9 @@ impl Drawable for RectDrawable {
                 p1: self.rect.borrow().p1 + offset,
                 p2: self.rect.borrow().p2 + offset,
             }),
-            border_thickness: RefCell::new(self.border_thickness.borrow().clone()),
-            border_style: RefCell::new(self.border_style.borrow().clone()),
-            fill_style: RefCell::new(self.fill_style.borrow().clone()),
+            border_thickness: RefCell::new(*self.border_thickness.borrow()),
+            border_style: RefCell::new(*self.border_style.borrow()),
+            fill_style: RefCell::new(*self.fill_style.borrow()),
         })
     }
 }

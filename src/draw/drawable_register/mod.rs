@@ -1,5 +1,3 @@
-use log::info;
-
 use crate::draw::{DrawableId, ScreenKey, terminal_buffer::Drawable};
 use std::{
     collections::HashMap,

@@ -1,7 +1,8 @@
+use ascii_assets::AsciiVideo;
 use ascii_assets::{AsciiSprite, TerminalChar};
 use crossterm::style::Color;
 
-use crate::{AsciiVideo, DrawError};
+use crate::draw::DrawError;
 pub fn generate_sprites() -> Result<(), DrawError> {
     let width = 2;
     let height = 2;

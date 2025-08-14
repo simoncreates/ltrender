@@ -1,26 +1,11 @@
 use ascii_assets::AsciiVideo;
 use common_stdx::{Point, Rect};
 use log::info;
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-pub trait AsAny {
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-}
-impl<T: Drawable + 'static> AsAny for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
-use crate::draw::terminal_buffer::Drawable;
-use crate::draw::{self, ScreenBuffer};
+use crate::draw::ScreenBuffer;
 use crate::draw::{
     DrawError, DrawObject, DrawObjectLibrary, DrawableKey, FileError, Screen, ScreenKey,
     SpriteData, SpriteDrawable, SpriteEntry, SpriteRegistry, error::AppError,
@@ -29,6 +14,11 @@ use crate::draw::{
 
 pub type SpriteId = usize;
 pub type DrawableId = usize;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RenderMode {
+    Instant,
+    Buffered,
+}
 pub struct Renderer<B = CrosstermScreenBuffer>
 where
     B: ScreenBuffer,
@@ -37,12 +27,17 @@ where
     obj_library: DrawObjectLibrary,
     screen_buffer: B,
     pub sprites: SpriteRegistry,
+    pub render_mode: RenderMode,
 }
 
 impl<B> Renderer<B>
 where
     B: ScreenBuffer,
 {
+    pub fn set_render_mode(&mut self, mode: RenderMode) {
+        self.render_mode = mode;
+    }
+
     /// Create a new renderer with an initial terminal size.
     pub fn create_renderer(size: (u16, u16)) -> Self {
         Renderer {
@@ -50,6 +45,7 @@ where
             screens: HashMap::new(),
             screen_buffer: B::new(size),
             sprites: SpriteRegistry::new(),
+            render_mode: RenderMode::Buffered,
         }
     }
 
@@ -73,6 +69,21 @@ where
             Ok((screen_id, new_obj_id))
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
+        }
+    }
+
+    pub fn remove_drawable(&mut self, id: DrawableKey) -> Result<(), DrawError> {
+        if let Some(s) = self.screens.get_mut(&id.0) {
+            s.remove_drawable(
+                id.1,
+                &mut self.screen_buffer,
+                &self.obj_library,
+                &self.sprites,
+            )?;
+            self.refresh(false)?;
+            Ok(())
+        } else {
+            Err(DrawError::DisplayKeyNotFound(id.0))
         }
     }
 
@@ -128,22 +139,7 @@ where
                 &self.obj_library,
                 &self.sprites,
             )?;
-            self.refresh()?;
-            Ok(())
-        } else {
-            Err(DrawError::DisplayKeyNotFound(id.0))
-        }
-    }
-
-    pub fn remove_drawable(&mut self, id: DrawableKey) -> Result<(), DrawError> {
-        if let Some(s) = self.screens.get_mut(&id.0) {
-            s.remove_drawable(
-                id.1,
-                &mut self.screen_buffer,
-                &self.obj_library,
-                &self.sprites,
-            )?;
-            self.refresh()?;
+            self.refresh(false)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(id.0))
@@ -176,47 +172,12 @@ where
             Err(DrawError::DisplayKeyNotFound(id.0))
         }
     }
-
-    pub fn with_drawable<F, T>(&mut self, handle: DrawableKey, f: F) -> Result<(), DrawError>
-    where
-        F: FnOnce(&mut T),
-        T: 'static,
-    {
-        let obj = self
-            .obj_library
-            .get_mut(&handle)
-            .ok_or(DrawError::DrawableHandleNotFound {
-                screen_id: handle.0,
-                obj_id: handle.1,
-            })?;
-
-        let mut guard = obj
-            .drawable
-            .lock()
-            .map_err(|_| DrawError::DrawableLockFailed)?;
-
-        let drawable_obj: &mut dyn crate::draw::terminal_buffer::drawable::Drawable = &mut **guard;
-        let any_ref: &mut dyn std::any::Any =
-            crate::draw::terminal_buffer::drawable::Drawable::as_any_mut(drawable_obj);
-
-        if let Some(concrete) = any_ref.downcast_mut::<T>() {
-            f(concrete);
-            Ok(())
-        } else {
-            Err(DrawError::WrongDrawableType {
-                expected: std::any::type_name::<T>(),
-                found: std::any::type_name::<dyn crate::draw::terminal_buffer::drawable::Drawable>(
-                ),
-            })
-        }
-    }
-
     /// Render all objects on all screens.
-    pub fn render_all(&mut self) -> Result<(), DrawError> {
+    fn render_all(&mut self) -> Result<(), DrawError> {
         for screen in self.screens.values_mut() {
             screen.render_all(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
         }
-        self.refresh()?;
+        self.refresh(false)?;
         Ok(())
     }
 
@@ -228,8 +189,19 @@ where
     }
 
     /// Flush the buffer to the terminal.
-    pub fn refresh(&mut self) -> Result<(), DrawError> {
-        B::update_terminal(&mut self.screen_buffer)?;
+    pub fn refresh(&mut self, forced: bool) -> Result<(), DrawError> {
+        if RenderMode::Buffered == self.render_mode || forced {
+            B::update_terminal(&mut self.screen_buffer)?;
+        }
+        Ok(())
+    }
+
+    pub fn render_frame(&mut self) -> Result<(), DrawError> {
+        self.render_all()?;
+        self.refresh(true)?;
+        for screen in self.screens.values_mut() {
+            screen.dump_after_frame();
+        }
         Ok(())
     }
 
@@ -242,53 +214,57 @@ where
         id
     }
 
-    pub fn update_drawable_mut<T, F>(&mut self, handle: DrawableKey, f: F) -> Result<(), DrawError>
-    where
-        F: FnOnce(&mut T),
-        T: 'static,
-    {
-        // remove old
-        let mut screen = self
-            .screens
-            .remove(&handle.0)
-            .ok_or(DrawError::DisplayKeyNotFound(handle.0))?;
-        screen.remove_drawable(
-            handle.1,
-            &mut self.screen_buffer,
-            &self.obj_library,
-            &self.sprites,
-        )?;
-        self.screens.insert(handle.0, screen);
-
-        // mutate
-        self.with_drawable(handle, f)?;
-
-        // rerender and flush
-        let mut screen = self
-            .screens
-            .remove(&handle.0)
-            .expect("screen must exist after insert");
-
-        screen.render_drawable(
-            handle.1,
-            &mut self.screen_buffer,
-            &self.obj_library,
-            &self.sprites,
-        )?;
-        self.screens.insert(handle.0, screen);
-        self.refresh()?;
-
-        Ok(())
-    }
-
     pub fn move_drawable_to(
         &mut self,
         handle: DrawableKey,
         new_pos: Point<u16>,
     ) -> Result<(), DrawError> {
-        self.update_drawable_mut::<SpriteDrawable, _>(handle, |spr| {
-            spr.position.replace(new_pos);
-        })
+        self.remove_drawable(handle)?;
+        {
+            let obj =
+                self.obj_library
+                    .get_mut(&handle)
+                    .ok_or(DrawError::DrawableHandleNotFound {
+                        screen_id: handle.0,
+                        obj_id: handle.1,
+                    })?;
+
+            let mut guard = obj
+                .drawable
+                .lock()
+                .map_err(|_| DrawError::DrawableLockFailed)?;
+
+            let drawable_obj: &mut dyn crate::draw::terminal_buffer::drawable::Drawable =
+                &mut **guard;
+
+            if let Some(dp) = drawable_obj.as_double_pointed_mut() {
+                let old_start = dp.start();
+                let old_end = dp.end();
+
+                let ox = old_start.x as i32;
+                let oy = old_start.y as i32;
+                let nx = new_pos.x as i32;
+                let ny = new_pos.y as i32;
+
+                let dx = nx - ox;
+                let dy = ny - oy;
+
+                dp.set_start(new_pos);
+                let new_end = Point {
+                    x: (old_end.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
+                    y: (old_end.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                };
+                dp.set_end(new_end);
+            } else if let Some(sp) = drawable_obj.as_single_pointed_mut() {
+                sp.set_position(new_pos);
+            } else {
+                info!(
+                    "Drawable {:?} does not implement a point trait; nothing moved",
+                    handle
+                );
+            }
+        }
+        Ok(())
     }
 
     pub fn move_drawable_by(
@@ -297,19 +273,103 @@ where
         dx: i32,
         dy: i32,
     ) -> Result<(), DrawError> {
-        self.update_drawable_mut::<SpriteDrawable, _>(handle, |spr| {
-            let mut pos = *spr.position.borrow();
-            let nx = (pos.x as i32)
-                .saturating_add(dx)
-                .max(0)
-                .min(u16::MAX as i32) as u16;
-            let ny = (pos.y as i32)
-                .saturating_add(dy)
-                .max(0)
-                .min(u16::MAX as i32) as u16;
-            pos.x = nx;
-            pos.y = ny;
-            spr.position.replace(pos);
-        })
+        self.remove_drawable(handle)?;
+        {
+            let obj =
+                self.obj_library
+                    .get_mut(&handle)
+                    .ok_or(DrawError::DrawableHandleNotFound {
+                        screen_id: handle.0,
+                        obj_id: handle.1,
+                    })?;
+
+            let mut guard = obj
+                .drawable
+                .lock()
+                .map_err(|_| DrawError::DrawableLockFailed)?;
+
+            let drawable_obj: &mut dyn crate::draw::terminal_buffer::drawable::Drawable =
+                &mut **guard;
+
+            if let Some(dp) = drawable_obj.as_double_pointed_mut() {
+                let start = dp.start();
+                let end = dp.end();
+
+                let new_start = Point {
+                    x: (start.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
+                    y: (start.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                };
+                let new_end = Point {
+                    x: (end.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
+                    y: (end.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                };
+
+                dp.set_start(new_start);
+                dp.set_end(new_end);
+            } else if let Some(sp) = drawable_obj.as_single_pointed_mut() {
+                let pos = sp.position();
+                let new_pos = Point {
+                    x: (pos.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
+                    y: (pos.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                };
+                sp.set_position(new_pos);
+            } else {
+                info!(
+                    "Drawable {:?} does not implement a point trait; nothing moved",
+                    handle
+                );
+            }
+        }
+        Ok(())
+    }
+
+    pub fn move_drawable_point(
+        &mut self,
+        handle: DrawableKey,
+        point_index: usize, // 0 => start, 1 => end
+        new_pos: Point<u16>,
+    ) -> Result<(), DrawError> {
+        self.remove_drawable(handle)?;
+        {
+            let obj =
+                self.obj_library
+                    .get_mut(&handle)
+                    .ok_or(DrawError::DrawableHandleNotFound {
+                        screen_id: handle.0,
+                        obj_id: handle.1,
+                    })?;
+
+            let mut guard = obj
+                .drawable
+                .lock()
+                .map_err(|_| DrawError::DrawableLockFailed)?;
+
+            let drawable_obj: &mut dyn crate::draw::terminal_buffer::drawable::Drawable =
+                &mut **guard;
+
+            if let Some(dp) = drawable_obj.as_double_pointed_mut() {
+                let clamped = Point {
+                    x: (new_pos.x as i32).clamp(0, u16::MAX as i32) as u16,
+                    y: (new_pos.y as i32).clamp(0, u16::MAX as i32) as u16,
+                };
+
+                match point_index {
+                    0 => dp.set_start(clamped),
+                    1 => dp.set_end(clamped),
+                    invalid => {
+                        info!(
+                            "move_drawable_point: invalid point_index {} for {:?}; nothing moved",
+                            invalid, handle
+                        );
+                    }
+                }
+            } else {
+                info!(
+                    "Drawable {:?} does not implement a point trait; nothing moved",
+                    handle
+                );
+            }
+        }
+        Ok(())
     }
 }

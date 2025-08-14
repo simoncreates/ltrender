@@ -1,8 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use crate::draw::{
-    self, DrawError, DrawObject, DrawableId, SpriteRegistry, UpdateInterval,
-    UpdateIntervalHandler,
+    DrawError, DrawObject, DrawableId, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
     terminal_buffer::{CharacterInfo, CharacterInfoList},
 };
 use common_stdx::Rect;

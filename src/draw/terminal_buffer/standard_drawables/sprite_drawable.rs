@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap};
 
 use common_stdx::{Point, Rect};
 
@@ -6,7 +6,7 @@ use crate::draw::{
     DrawError, SpriteData, SpriteId, SpriteRegistry, UpdateInterval,
     terminal_buffer::{
         Drawable,
-        drawable::{BasicDraw, convert_rect_to_update_intervals},
+        drawable::{BasicDraw, SinglePointed, convert_rect_to_update_intervals},
     },
 };
 
@@ -16,17 +16,23 @@ pub struct SpriteDrawable {
     pub sprite_id: RefCell<SpriteId>,
 }
 
-impl Drawable for SpriteDrawable {
-    fn as_any(&self) -> &dyn Any {
-        self
+impl SinglePointed for SpriteDrawable {
+    fn position(&self) -> Point<u16> {
+        *self.position.borrow()
     }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
+    fn set_position(&mut self, p: Point<u16>) {
+        self.position.replace(p);
+    }
+}
+
+impl Drawable for SpriteDrawable {
+    fn as_single_pointed_mut(&mut self) -> Option<&mut dyn SinglePointed> {
+        Some(self)
     }
     fn draw(&self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         let sprite = sprites
             .get(&self.sprite_id.borrow())
-            .ok_or(DrawError::SpriteNotFound(self.sprite_id.borrow().clone()))?;
+            .ok_or(DrawError::SpriteNotFound(*self.sprite_id.borrow()))?;
 
         match &sprite.info {
             SpriteData::Sprite(content) => {
@@ -61,7 +67,7 @@ impl Drawable for SpriteDrawable {
             .map(|s| s.size())
             .unwrap_or((0, 0, 0));
         convert_rect_to_update_intervals(Rect {
-            p1: self.position.borrow().clone(),
+            p1: *self.position.borrow(),
             p2: Point {
                 x: self.position.borrow().x + size.1 as u16,
                 y: self.position.borrow().y + size.2 as u16,

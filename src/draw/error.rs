@@ -34,6 +34,10 @@ pub enum DrawError {
         expected: &'static str,
         found: &'static str,
     },
+
+    #[error("this drawable does not support point manipulation")]
+    UnsupportedOperation,
+
     #[error("Failed to lock drawable")]
     DrawableLockFailed,
 

@@ -1,1 +1,1 @@
-[INFO] - ltrender - handling a resize took: 7.884 ms
+[INFO] - ltrender - handling a resize took: 36.857 ms

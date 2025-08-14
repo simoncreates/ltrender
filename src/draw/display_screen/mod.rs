@@ -1,11 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use crate::draw::{
-    self, DrawError, DrawObject, DrawObjectLibrary, DrawableId, ScreenBuffer, SpriteRegistry,
+    DrawError, DrawObject, DrawObjectLibrary, DrawableId, ScreenBuffer, SpriteRegistry,
 };
 use common_stdx::Rect;
-use log::info;
-
 pub type ScreenKey = usize;
 
 #[derive(Debug)]
@@ -34,10 +32,12 @@ impl Screen {
         }
     }
 
+    /// register a drawable, so it can be drawn on this screen
     pub fn register_drawable(&mut self, obj_id: DrawableId) {
         self.draw_objects.push(obj_id);
     }
 
+    /// render a drawable to the screen
     pub fn render_drawable<T>(
         &mut self,
         obj_id: DrawableId,
@@ -60,6 +60,8 @@ impl Screen {
         screen_buffer.add_to_buffer(&obj, obj_id, self.layer, &self.area, sprites)?;
         Ok(())
     }
+
+    /// Remove a drawable object from the screen.
     pub fn remove_drawable<T>(
         &mut self,
         obj_id: DrawableId,
@@ -83,6 +85,12 @@ impl Screen {
         Ok(())
     }
 
+    /// remembers all the old drawables, so later diffing can be done
+    pub fn dump_after_frame(&mut self) {
+        self.draw_objects.clear();
+    }
+
+    /// uncoditionally renders all owned drawables
     pub fn render_all<T>(
         &mut self,
         screen_buffer: &mut T,

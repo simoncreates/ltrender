@@ -4,7 +4,7 @@ use crate::draw::{
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
-use std::{any::Any, collections::HashMap};
+use std::collections::HashMap;
 
 pub fn convert_rect_to_update_intervals(rect: Rect<u16>) -> HashMap<u16, Vec<UpdateInterval>> {
     let mut intervals: HashMap<u16, Vec<UpdateInterval>> = HashMap::new();
@@ -105,12 +105,39 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     /// ```
     fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable>;
 
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
+        None
+    }
+    fn as_single_pointed_mut(&mut self) -> Option<&mut dyn SinglePointed> {
+        None
+    }
 }
 
 impl Clone for Box<dyn Drawable> {
     fn clone(&self) -> Box<dyn Drawable> {
         self.clone_box()
     }
+}
+
+// extensions:
+
+/// One point that can be read / written.
+pub trait SinglePointed {
+    /// The *current* position of the object.
+    fn position(&self) -> Point<u16>;
+    /// Change the stored position.
+    fn set_position(&mut self, p: Point<u16>);
+}
+
+/// Two points (start & end).  The default implementation could simply
+/// forward to `SinglePointed` if you want a single‑point shape to be usable
+/// as a “first point” of a double‑point shape.
+pub trait DoublePointed {
+    /// Return the two defining points.
+    fn start(&self) -> Point<u16>;
+    fn end(&self) -> Point<u16>;
+
+    /// Mutably change one of them.
+    fn set_start(&mut self, p: Point<u16>);
+    fn set_end(&mut self, p: Point<u16>);
 }
