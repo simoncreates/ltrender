@@ -1,11 +1,10 @@
 use ascii_assets::AsciiVideo;
 use common_stdx::{Point, Rect};
 use log::info;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 use crate::draw::ScreenBuffer;
+use crate::draw::terminal_buffer::drawable::Drawable;
 use crate::draw::{
     DrawError, DrawObject, DrawObjectLibrary, DrawableKey, FileError, Screen, ScreenKey,
     SpriteData, SpriteDrawable, SpriteEntry, SpriteRegistry, error::AppError,
@@ -97,10 +96,10 @@ where
     ) -> Result<DrawableKey, DrawError> {
         let obj = DrawObject {
             layer,
-            drawable: Arc::new(Mutex::new(Box::new(SpriteDrawable {
-                position: RefCell::new(position),
-                sprite_id: RefCell::new(sprite_id),
-            }))),
+            drawable: Box::new(SpriteDrawable {
+                position,
+                sprite_id,
+            }),
         };
         self.register_drawable(screen_id, obj)
     }
@@ -229,13 +228,7 @@ where
                         obj_id: handle.1,
                     })?;
 
-            let mut guard = obj
-                .drawable
-                .lock()
-                .map_err(|_| DrawError::DrawableLockFailed)?;
-
-            let drawable_obj: &mut dyn crate::draw::terminal_buffer::drawable::Drawable =
-                &mut **guard;
+            let drawable_obj: &mut dyn Drawable = &mut *obj.drawable;
 
             if let Some(dp) = drawable_obj.as_double_pointed_mut() {
                 let old_start = dp.start();
@@ -283,13 +276,7 @@ where
                         obj_id: handle.1,
                     })?;
 
-            let mut guard = obj
-                .drawable
-                .lock()
-                .map_err(|_| DrawError::DrawableLockFailed)?;
-
-            let drawable_obj: &mut dyn crate::draw::terminal_buffer::drawable::Drawable =
-                &mut **guard;
+            let drawable_obj: &mut dyn Drawable = &mut *obj.drawable;
 
             if let Some(dp) = drawable_obj.as_double_pointed_mut() {
                 let start = dp.start();
@@ -339,13 +326,7 @@ where
                         obj_id: handle.1,
                     })?;
 
-            let mut guard = obj
-                .drawable
-                .lock()
-                .map_err(|_| DrawError::DrawableLockFailed)?;
-
-            let drawable_obj: &mut dyn crate::draw::terminal_buffer::drawable::Drawable =
-                &mut **guard;
+            let drawable_obj: &mut dyn Drawable = &mut *obj.drawable;
 
             if let Some(dp) = drawable_obj.as_double_pointed_mut() {
                 let clamped = Point {

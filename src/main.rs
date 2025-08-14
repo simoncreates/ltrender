@@ -9,10 +9,8 @@ use draw::{DrawError, Renderer, init_terminal, restore_terminal};
 use env_logger::Builder;
 use log::info;
 use rand::Rng as _;
-use std::cell::RefCell;
 use std::fs::File;
 use std::io::Write;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 mod temp_sprite_creation;
@@ -39,14 +37,14 @@ fn main() -> Result<(), AppError> {
     let position = Point { x: 0, y: 0 };
     let obj = DrawObject {
         layer,
-        drawable: Arc::new(Mutex::new(Box::new(SpriteDrawable {
-            position: RefCell::new(position),
-            sprite_id: RefCell::new(sprite_id),
-        }))),
+        drawable: Box::new(SpriteDrawable {
+            position,
+            sprite_id,
+        }),
     };
     let line_obj = DrawObject {
         layer: 100,
-        drawable: Arc::new(Mutex::new(Box::new(LineDrawable {
+        drawable: Box::new(LineDrawable {
             start: Point { x: 0, y: 0 },
             end: Point { x: 10, y: 10 },
             chr: TerminalChar {
@@ -54,7 +52,7 @@ fn main() -> Result<(), AppError> {
                 fg_color: Some(Color::Blue),
                 bg_color: Some(Color::Black),
             },
-        }))),
+        }),
     };
     let line_id = r.register_drawable(screen_id, line_obj)?;
     let obj_id = r.register_drawable(screen_id, obj)?;

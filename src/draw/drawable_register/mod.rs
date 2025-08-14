@@ -1,15 +1,12 @@
 use crate::draw::{DrawableId, ScreenKey, terminal_buffer::Drawable};
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::collections::HashMap;
 
 pub type DrawableKey = (ScreenKey, DrawableId);
 
 #[derive(Debug, Clone)]
 pub struct DrawObject {
     pub layer: usize,
-    pub drawable: Arc<Mutex<Box<dyn Drawable + 'static>>>,
+    pub drawable: Box<dyn Drawable + 'static>,
 }
 
 #[derive(Debug, Clone, Default)]

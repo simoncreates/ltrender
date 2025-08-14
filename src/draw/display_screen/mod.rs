@@ -1,5 +1,3 @@
-use std::sync::{Arc, Mutex};
-
 use crate::draw::{
     DrawError, DrawObject, DrawObjectLibrary, DrawableId, ScreenBuffer, SpriteRegistry,
 };
@@ -25,10 +23,10 @@ impl Screen {
     }
 
     fn shift_obj_to_local_cords(&self, obj: &DrawObject) -> DrawObject {
-        let shifted_drawable = obj.drawable.lock().unwrap().shifted(self.area.p1);
+        let shifted_drawable = obj.drawable.shifted(self.area.p1);
         DrawObject {
             layer: obj.layer,
-            drawable: Arc::new(Mutex::new(shifted_drawable)),
+            drawable: shifted_drawable,
         }
     }
 

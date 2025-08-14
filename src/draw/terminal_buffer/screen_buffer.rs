@@ -58,7 +58,7 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
         bounds: &Rect<u16>,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError> {
-        let drawable = obj.drawable.lock().unwrap();
+        let drawable = &*obj.drawable;
         let map = drawable.bounding_iv(sprites);
         self.merge_intervals(map);
 
@@ -91,7 +91,7 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
         obj_id: DrawableId,
         sprites: &SpriteRegistry,
     ) {
-        let drawable = obj.drawable.lock().unwrap();
+        let drawable = &*obj.drawable;
         let map = drawable.bounding_iv(sprites);
         self.merge_intervals(map.clone());
 

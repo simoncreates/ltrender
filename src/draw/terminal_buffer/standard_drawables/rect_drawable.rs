@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
 use crate::draw::{
     DrawError, SpriteRegistry, UpdateInterval,
@@ -13,25 +13,25 @@ use common_stdx::{Point, Rect};
 
 #[derive(Clone, Debug)]
 pub struct RectDrawable {
-    pub rect: RefCell<Rect<u16>>,
-    pub border_thickness: RefCell<u16>,
-    pub border_style: RefCell<TerminalChar>,
-    pub fill_style: RefCell<Option<TerminalChar>>,
+    pub rect: Rect<u16>,
+    pub border_thickness: u16,
+    pub border_style: TerminalChar,
+    pub fill_style: Option<TerminalChar>,
 }
 
 impl DoublePointed for RectDrawable {
     fn start(&self) -> Point<u16> {
-        self.rect.borrow().p1
+        self.rect.p1
     }
     fn end(&self) -> Point<u16> {
-        self.rect.borrow().p2
+        self.rect.p2
     }
 
     fn set_start(&mut self, p: Point<u16>) {
-        self.rect.borrow_mut().p1 = p;
+        self.rect.p1 = p;
     }
     fn set_end(&mut self, p: Point<u16>) {
-        self.rect.borrow_mut().p2 = p;
+        self.rect.p2 = p;
     }
 }
 
@@ -40,29 +40,28 @@ impl Drawable for RectDrawable {
         Some(self)
     }
     fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
-        let rect = self.rect.borrow();
-
-        if rect.p1.x > rect.p2.x || rect.p1.y > rect.p2.y {
+        if self.rect.p1.x > self.rect.p2.x || self.rect.p1.y > self.rect.p2.y {
             return Ok(Vec::new());
         }
 
         let mut out = Vec::with_capacity(
-            ((rect.p2.x - rect.p1.x + 1) as usize) * ((rect.p2.y - rect.p1.y + 1) as usize),
+            ((self.rect.p2.x - self.rect.p1.x + 1) as usize)
+                * ((self.rect.p2.y - self.rect.p1.y + 1) as usize),
         );
 
-        for y in rect.p1.y..=rect.p2.y {
-            for x in rect.p1.x..=rect.p2.x {
-                let left = x - rect.p1.x;
-                let right = rect.p2.x - x;
-                let top = y - rect.p1.y;
-                let bottom = rect.p2.y - y;
+        for y in self.rect.p1.y..=self.rect.p2.y {
+            for x in self.rect.p1.x..=self.rect.p2.x {
+                let left = x - self.rect.p1.x;
+                let right = self.rect.p2.x - x;
+                let top = y - self.rect.p1.y;
+                let bottom = self.rect.p2.y - y;
 
                 let min_dist = *[left, right, top, bottom].iter().min().unwrap();
 
-                let chr = if min_dist < *self.border_thickness.borrow() {
-                    *self.border_style.borrow()
+                let chr = if min_dist < self.border_thickness {
+                    self.border_style
                 } else {
-                    match *self.fill_style.borrow() {
+                    match self.fill_style {
                         Some(ch) => ch,
                         None => continue,
                     }
@@ -79,12 +78,12 @@ impl Drawable for RectDrawable {
     }
 
     fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
-        if *self.border_thickness.borrow() == 0 {
+        if self.border_thickness == 0 {
             return HashMap::new();
         }
 
-        if self.fill_style.borrow().is_some() {
-            let rect = self.rect.borrow();
+        if self.fill_style.is_some() {
+            let rect = self.rect;
             return convert_rect_to_update_intervals(Rect {
                 p1: rect.p1,
                 p2: Point {
@@ -110,8 +109,8 @@ impl Drawable for RectDrawable {
             }
         }
 
-        let t = *self.border_thickness.borrow();
-        let rect = *self.rect.borrow();
+        let t = self.border_thickness;
+        let rect = self.rect;
         for y in rect.p1.y..=rect.p2.y {
             let is_top = y < rect.p1.y + t;
             let is_bottom = y > rect.p2.y - t;
@@ -143,13 +142,13 @@ impl Drawable for RectDrawable {
 
     fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable> {
         Box::new(RectDrawable {
-            rect: RefCell::new(Rect {
-                p1: self.rect.borrow().p1 + offset,
-                p2: self.rect.borrow().p2 + offset,
-            }),
-            border_thickness: RefCell::new(*self.border_thickness.borrow()),
-            border_style: RefCell::new(*self.border_style.borrow()),
-            fill_style: RefCell::new(*self.fill_style.borrow()),
+            rect: Rect {
+                p1: self.rect.p1 + offset,
+                p2: self.rect.p2 + offset,
+            },
+            border_thickness: self.border_thickness,
+            border_style: self.border_style,
+            fill_style: self.fill_style,
         })
     }
 }
