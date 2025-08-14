@@ -11,13 +11,11 @@ use log::info;
 use rand::Rng as _;
 use std::fs::File;
 use std::io::Write;
-use std::thread;
 use std::time::{Duration, Instant};
 mod temp_sprite_creation;
 use temp_sprite_creation::generate_sprites;
 
 use crate::draw::error::AppError;
-use crate::draw::renderer::RenderMode;
 use crate::draw::terminal_buffer::{CrosstermScreenBuffer, LineDrawable};
 use crate::draw::{DrawObject, SpriteDrawable};
 
@@ -31,7 +29,6 @@ fn main() -> Result<(), AppError> {
     let term_size = size()?;
     let mut r = Renderer::<CrosstermScreenBuffer>::create_renderer(term_size);
     let sprite_id = r.register_sprite_from_source(sprite_path, None)?;
-    r.set_render_mode(RenderMode::Buffered);
 
     let screen_id = r.create_screen(Rect::from_coords(0, 0, term_size.0, term_size.1), 7);
 
@@ -59,6 +56,7 @@ fn main() -> Result<(), AppError> {
     let line_id = r.register_drawable(screen_id, line_obj.clone())?;
     let line_id_2 = r.register_drawable(screen_id, line_obj)?;
     let obj_id = r.register_drawable(screen_id, obj)?;
+    let mut frame_time = Vec::new();
 
     let mut running = true;
 
@@ -69,6 +67,11 @@ fn main() -> Result<(), AppError> {
                 Event::Key(k) => {
                     if k.code == KeyCode::Esc || k.code == KeyCode::Char('q') {
                         running = false;
+                        info!(
+                            "average frametime: {:.3} ms",
+                            frame_time.iter().sum::<Duration>().as_millis() as f64
+                                / frame_time.len() as f64
+                        );
                     }
                     if k.code == KeyCode::Right {
                         r.move_drawable_by(obj_id, 1, 0)?;
@@ -81,31 +84,17 @@ fn main() -> Result<(), AppError> {
             }
         }
         let current_size: (u16, u16) = size()?;
-
-        r.move_drawable_point(
-            line_id,
-            rng.gen_range(0..2),
-            Point {
-                x: rng.gen_range(0..current_size.0),
-                y: rng.gen_range(0..current_size.1),
-            },
-        )?;
-        r.move_drawable_point(
-            line_id_2,
-            rng.gen_range(0..2),
-            Point {
-                x: rng.gen_range(0..current_size.0),
-                y: rng.gen_range(0..current_size.1),
-            },
-        )?;
+        let rand_point = Point {
+            x: rng.gen_range(0..current_size.0),
+            y: rng.gen_range(0..current_size.1),
+        };
+        r.move_drawable_point(line_id, rng.gen_range(0..2), rand_point)?;
+        r.move_drawable_point(line_id_2, rng.gen_range(0..2), rand_point)?;
         r.render_drawable(line_id)?;
         r.render_drawable(line_id_2)?;
         r.render_drawable(obj_id)?;
         let duration = start.elapsed();
-        info!(
-            "handling drawing took: {:.3} ms",
-            duration.as_secs_f64() * 1000.0
-        );
+        frame_time.push(duration);
         r.render_frame()?;
     }
     restore_terminal()?;

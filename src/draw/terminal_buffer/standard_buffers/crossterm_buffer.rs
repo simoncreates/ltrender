@@ -19,6 +19,7 @@ use crate::draw::{
 pub struct CrosstermScreenBuffer {
     cells: Vec<CharacterInfoList>,
     intervals: UpdateIntervalHandler,
+    out: std::io::Stdout,
     size: (u16, u16),
 }
 impl ScreenBufferCore for CrosstermScreenBuffer {
@@ -43,9 +44,8 @@ impl CellDrawer for CrosstermScreenBuffer {
         fg_color: Option<Color>,
         bg_color: Option<Color>,
     ) {
-        let mut out = stdout();
         queue!(
-            out,
+            self.out,
             MoveTo(pos.x, pos.y),
             SetForegroundColor(fg_color.unwrap_or(Color::Reset)),
             SetBackgroundColor(bg_color.unwrap_or(Color::Reset)),
@@ -55,7 +55,7 @@ impl CellDrawer for CrosstermScreenBuffer {
     }
 
     fn flush(&mut self) -> Result<(), DrawError> {
-        stdout().flush()?;
+        self.out.flush()?;
         Ok(())
     }
 }
@@ -72,6 +72,7 @@ impl ScreenBuffer for CrosstermScreenBuffer {
             ],
             intervals: UpdateIntervalHandler::new(),
             size,
+            out: stdout(),
         }
     }
 }
