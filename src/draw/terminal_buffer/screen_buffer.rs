@@ -6,9 +6,9 @@ use crate::draw::{
 };
 use common_stdx::Rect;
 
+use ascii_assets::Color;
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
-use crossterm::style::Color;
 
 /// Trait that describes how to write a single character and flush the
 /// underlying output device.
@@ -221,4 +221,46 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
     fn idx_of(&self, pos: Point<u16>) -> usize {
         (pos.y as usize) * self.size().0 as usize + pos.x as usize
     }
+}
+
+#[macro_export]
+macro_rules! default_screen_buffer {
+    ($name:ident) => {
+        #[derive(Debug)]
+        pub struct $name {
+            cells: Vec<CharacterInfoList>,
+            intervals: UpdateIntervalHandler,
+            out: std::io::Stdout,
+            size: (u16, u16),
+        }
+        impl ScreenBufferCore for $name {
+            fn cell_info_mut(&mut self) -> &mut Vec<CharacterInfoList> {
+                &mut self.cells
+            }
+
+            fn intervals_mut(&mut self) -> &mut UpdateIntervalHandler {
+                &mut self.intervals
+            }
+
+            fn size(&self) -> (u16, u16) {
+                self.size
+            }
+        }
+        impl ScreenBuffer for $name {
+            fn new(size: (u16, u16)) -> Self {
+                let capacity = size.0 as usize * size.1 as usize;
+                $name {
+                    cells: vec![
+                        CharacterInfoList {
+                            info: HashMap::new()
+                        };
+                        capacity
+                    ],
+                    intervals: UpdateIntervalHandler::new(),
+                    size,
+                    out: stdout(),
+                }
+            }
+        }
+    };
 }

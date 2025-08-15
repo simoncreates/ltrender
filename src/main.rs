@@ -1,9 +1,8 @@
 pub mod draw;
 
-use ascii_assets::TerminalChar;
+use ascii_assets::{Color, TerminalChar};
 use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, poll, read};
-use crossterm::style::Color;
 use crossterm::terminal::size;
 use draw::{DrawError, Renderer, init_terminal, restore_terminal};
 use env_logger::Builder;
@@ -46,11 +45,7 @@ fn main() -> Result<(), AppError> {
         drawable: Box::new(LineDrawable {
             start: Point { x: 0, y: 0 },
             end: Point { x: 10, y: 10 },
-            chr: TerminalChar {
-                chr: '#',
-                fg_color: Some(Color::Blue),
-                bg_color: Some(Color::Black),
-            },
+            chr: TerminalChar::with_fg('#', Color::Red),
         }),
     };
     let line_id = r.register_drawable(screen_id, line_obj.clone())?;

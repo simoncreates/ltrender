@@ -3,6 +3,7 @@ use std::{
     io::{Write, stdout},
 };
 
+use ascii_assets;
 use common_stdx::Point;
 use crossterm::{
     cursor::MoveTo,
@@ -15,24 +16,20 @@ use crate::draw::{
     terminal_buffer::{CellDrawer, CharacterInfoList, ScreenBufferCore},
 };
 
-#[derive(Debug)]
-pub struct CrosstermScreenBuffer {
-    cells: Vec<CharacterInfoList>,
-    intervals: UpdateIntervalHandler,
-    out: std::io::Stdout,
-    size: (u16, u16),
-}
-impl ScreenBufferCore for CrosstermScreenBuffer {
-    fn cell_info_mut(&mut self) -> &mut Vec<CharacterInfoList> {
-        &mut self.cells
-    }
+use crate::default_screen_buffer;
 
-    fn intervals_mut(&mut self) -> &mut UpdateIntervalHandler {
-        &mut self.intervals
-    }
+default_screen_buffer!(CrosstermScreenBuffer);
 
-    fn size(&self) -> (u16, u16) {
-        self.size
+pub fn to_crossterm_color(colour: Option<ascii_assets::Color>) -> crossterm::style::Color {
+    if let Some(colour) = colour {
+        if colour.reset {
+            Color::Reset
+        } else {
+            let (r, g, b) = colour.rgb;
+            crossterm::style::Color::Rgb { r, g, b }
+        }
+    } else {
+        Color::Reset
     }
 }
 
@@ -41,14 +38,17 @@ impl CellDrawer for CrosstermScreenBuffer {
         &mut self,
         pos: Point<u16>,
         s: &str,
-        fg_color: Option<Color>,
-        bg_color: Option<Color>,
+        fg_color: Option<ascii_assets::Color>,
+        bg_color: Option<ascii_assets::Color>,
     ) {
+        let ct_fg_color = to_crossterm_color(fg_color);
+        let ct_bg_color = to_crossterm_color(bg_color);
+
         queue!(
             self.out,
             MoveTo(pos.x, pos.y),
-            SetForegroundColor(fg_color.unwrap_or(Color::Reset)),
-            SetBackgroundColor(bg_color.unwrap_or(Color::Reset)),
+            SetForegroundColor(ct_fg_color),
+            SetBackgroundColor(ct_bg_color),
             Print(s)
         )
         .expect("Failed to write to terminal");
@@ -57,22 +57,5 @@ impl CellDrawer for CrosstermScreenBuffer {
     fn flush(&mut self) -> Result<(), DrawError> {
         self.out.flush()?;
         Ok(())
-    }
-}
-
-impl ScreenBuffer for CrosstermScreenBuffer {
-    fn new(size: (u16, u16)) -> Self {
-        let capacity = size.0 as usize * size.1 as usize;
-        CrosstermScreenBuffer {
-            cells: vec![
-                CharacterInfoList {
-                    info: HashMap::new()
-                };
-                capacity
-            ],
-            intervals: UpdateIntervalHandler::new(),
-            size,
-            out: stdout(),
-        }
     }
 }

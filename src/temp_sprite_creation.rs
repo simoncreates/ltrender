@@ -1,6 +1,6 @@
 use ascii_assets::AsciiVideo;
+use ascii_assets::Color;
 use ascii_assets::{AsciiSprite, TerminalChar};
-use crossterm::style::Color;
 
 use crate::draw::DrawError;
 pub fn generate_sprites() -> Result<(), DrawError> {
@@ -9,13 +9,19 @@ pub fn generate_sprites() -> Result<(), DrawError> {
     let frame1 = vec![
         TerminalChar {
             chr: 'A',
-            fg_color: Some(Color::Rgb { r: 255, g: 0, b: 0 }),
+            fg_color: Some(Color {
+                rgb: (255, 0, 0),
+                reset: false,
+            }),
             bg_color: None,
         },
         TerminalChar {
             chr: 'B',
             fg_color: None,
-            bg_color: Some(Color::Rgb { r: 0, g: 255, b: 0 }),
+            bg_color: Some(Color {
+                rgb: (0, 255, 0),
+                reset: false,
+            }),
         },
         TerminalChar {
             chr: 'C',

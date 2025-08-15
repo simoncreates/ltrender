@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 crossterm     = "0.29.0"
-ascii_assets  = "0.1.1"
+ascii_assets  = "0.2.0"
 common-stdx   = "0.1.1"
 log           = "0.4.27"
 env_logger = "0.11.8"
