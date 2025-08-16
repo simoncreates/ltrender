@@ -35,12 +35,6 @@ pub enum DrawError {
         found: &'static str,
     },
 
-    #[error("this drawable does not support point manipulation")]
-    UnsupportedOperation,
-
-    #[error("Failed to lock drawable")]
-    DrawableLockFailed,
-
     #[error("Screen with id {0} not found")]
     DisplayKeyNotFound(usize),
 

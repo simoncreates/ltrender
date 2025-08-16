@@ -39,7 +39,7 @@ impl Drawable for RectDrawable {
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }
-    fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         if self.rect.p1.x > self.rect.p2.x || self.rect.p1.y > self.rect.p2.y {
             return Ok(Vec::new());
         }

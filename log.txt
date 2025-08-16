@@ -1,1 +1,5 @@
-[INFO] - ltrender - average frametime: 15.997 ms
+[INFO] - ltrender - FPS: 3.37 | Avg frame time: 96.250 ms
+[INFO] - ltrender - FPS: 3.25 | Avg frame time: 101.250 ms
+[INFO] - ltrender - FPS: 3.23 | Avg frame time: 103.750 ms
+[INFO] - ltrender - FPS: 3.23 | Avg frame time: 104.875 ms
+[INFO] - ltrender - average frametime: 106.000 ms

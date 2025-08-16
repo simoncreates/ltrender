@@ -67,13 +67,13 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
     /// Add an object to the buffer.
     fn add_to_buffer(
         &mut self,
-        obj: &DrawObject,
+        obj: &mut DrawObject,
         obj_id: DrawableId,
         screen_layer: usize,
         bounds: &Rect<u16>,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError> {
-        let drawable = &*obj.drawable;
+        let drawable = &mut obj.drawable;
         let map = drawable.bounding_iv(sprites);
         self.merge_intervals(map);
 

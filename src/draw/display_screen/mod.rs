@@ -47,7 +47,7 @@ impl Screen {
         T: ScreenBuffer,
     {
         let opt_obj = obj_library.find_drawable(self.id, obj_id);
-        let obj = if let Some(obj) = opt_obj {
+        let mut obj = if let Some(obj) = opt_obj {
             self.shift_obj_to_local_cords(obj)
         } else {
             return Err(DrawError::DrawableHandleNotFound {
@@ -55,7 +55,7 @@ impl Screen {
                 obj_id,
             });
         };
-        screen_buffer.add_to_buffer(&obj, obj_id, self.layer, &self.area, sprites)?;
+        screen_buffer.add_to_buffer(&mut obj, obj_id, self.layer, &self.area, sprites)?;
         Ok(())
     }
 

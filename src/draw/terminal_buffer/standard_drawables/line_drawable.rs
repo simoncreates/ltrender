@@ -38,7 +38,7 @@ impl Drawable for LineDrawable {
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }
-    fn draw(&self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         let mut x0 = self.start.x as i32;
         let mut y0 = self.start.y as i32;
         let x1 = self.end.x as i32;

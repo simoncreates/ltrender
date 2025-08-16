@@ -1,5 +1,6 @@
 use ascii_assets::AsciiVideo;
 use common_stdx::{Point, Rect};
+use log::info;
 use std::collections::HashMap;
 
 use crate::draw::ScreenBuffer;
@@ -212,6 +213,20 @@ where
         id
     }
 
+    fn get_drawable<F, T>(&self, handle: DrawableKey, mut get_fn: F) -> Result<T, DrawError>
+    where
+        F: FnMut(&dyn Drawable) -> Result<T, DrawError>,
+    {
+        if let Some(obj) = self.obj_library.find_drawable(handle.0, handle.1) {
+            get_fn(&*obj.drawable)
+        } else {
+            Err(DrawError::DrawableHandleNotFound {
+                screen_id: handle.0,
+                obj_id: handle.1,
+            })
+        }
+    }
+
     /// general update function
     fn update_drawable<F>(&mut self, handle: DrawableKey, mut update_fn: F) -> Result<(), DrawError>
     where
@@ -304,6 +319,66 @@ where
                     1 => dp.set_end(clamped),
                     _ => {}
                 }
+            }
+        })
+    }
+    pub fn move_multipoint_drawable_point(
+        &mut self,
+        handle: DrawableKey,
+        point_index: usize,
+        new_pos: Point<u16>,
+    ) -> Result<(), DrawError> {
+        self.update_drawable(handle, |drawable| {
+            if let Some(mp) = drawable.as_multi_pointed_mut() {
+                let clamped = Point {
+                    x: (new_pos.x as i32).clamp(0, u16::MAX as i32) as u16,
+                    y: (new_pos.y as i32).clamp(0, u16::MAX as i32) as u16,
+                };
+                mp.set_point(point_index, clamped);
+            }
+        })
+    }
+    /// replace a drawables points
+    pub fn replace_drawable_points(
+        &mut self,
+        handle: DrawableKey,
+        new_points: Vec<Point<u16>>,
+    ) -> Result<(), DrawError> {
+        self.update_drawable(handle, |drawable| {
+            if let Some(mp) = drawable.as_multi_pointed_mut() {
+                mp.set_points(new_points.clone());
+            } else if let Some(dp) = drawable.as_double_pointed_mut() {
+                if new_points.len() == 2 {
+                    dp.set_start(new_points[0]);
+                    dp.set_end(new_points[1]);
+                } else {
+                    info!(
+                        "Expected exactly two points for double-pointed drawable, got {}",
+                        new_points.len()
+                    );
+                }
+            } else if new_points.len() == 1 {
+                if let Some(sp) = drawable.as_single_pointed_mut() {
+                    sp.set_position(new_points[0]);
+                } else {
+                    info!("Drawable is not single-pointed");
+                }
+            } else {
+                info!(
+                    "Expected exactly one point for single-pointed drawable, got {}",
+                    new_points.len()
+                );
+            }
+        })
+    }
+
+    pub fn get_amount_of_points(&self, handle: DrawableKey) -> Result<Option<usize>, DrawError> {
+        self.get_drawable(handle, |drawable| {
+            if let Some(mp) = drawable.as_multi_pointed() {
+                Ok(Some(mp.points().len()))
+            } else {
+                info!("Drawable is not multipointed");
+                Ok(None)
             }
         })
     }

@@ -4,3 +4,5 @@ pub mod line_drawable;
 pub use line_drawable::LineDrawable;
 pub mod rect_drawable;
 pub use rect_drawable::RectDrawable;
+pub mod polygon_drawable;
+pub use polygon_drawable::PolygonDrawable;

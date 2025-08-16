@@ -29,7 +29,7 @@ impl Drawable for SpriteDrawable {
     fn as_single_pointed_mut(&mut self) -> Option<&mut dyn SinglePointed> {
         Some(self)
     }
-    fn draw(&self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&mut self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         let sprite = sprites
             .get(&self.sprite_id)
             .ok_or(DrawError::SpriteNotFound(self.sprite_id))?;

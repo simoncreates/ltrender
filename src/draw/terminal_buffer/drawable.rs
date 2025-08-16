@@ -52,7 +52,14 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     /// let sprite = SpriteDrawable { position: Point::new(0, 0), sprite_id: 1 };
     /// let draws = sprite.draw(&all_sprites).unwrap();
     /// ```
-    fn draw(&self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError>;
+    ///
+    /// ### Info
+    ///
+    /// - Usually you will not need to use the SpriteRegistry
+    /// - Also it is generally not recommended to mutate self during the draw function,
+    ///   but has been added for flexibility reasons.
+    ///
+    fn draw(&mut self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError>;
 
     /// Return a map of update intervals keyed by row.
     ///
@@ -92,16 +99,27 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     ///
     /// ## Examples
     ///
-    /// ```rust
-    /// // Assume we have a concrete implementation called `SpriteDrawable`
+    /// ```
+    /// # use crate::draw::{
+    /// #    terminal_buffer::{
+    /// #        Drawable,
+    /// #        drawable::SpriteDrawable,
+    /// #    },
+    /// # };
+    /// # use common_stdx::Point;
+    ///
     /// let original = SpriteDrawable {
-    ///     position: Point::new(0, 0),
+    ///     position: Point { x: 0, y: 0 },
     ///     sprite_id: 42,
     /// };
-    /// let shifted = original.shifted(Point::new(10, 5));
     ///
-    /// // The new drawable has the updated position.
-    /// assert_eq!(shifted.position(), Point::new(10, 5));
+    /// let shifted_drawable = original.shifted(Point { x: 10, y: 5 });
+    ///
+    /// let shifted = shifted_drawable
+    ///     .downcast::<SpriteDrawable>()
+    ///     .unwrap();
+    ///
+    /// assert_eq!(shifted.position, Point { x: 10, y: 5 });
     /// ```
     fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable>;
 
@@ -109,6 +127,12 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
         None
     }
     fn as_single_pointed_mut(&mut self) -> Option<&mut dyn SinglePointed> {
+        None
+    }
+    fn as_multi_pointed_mut(&mut self) -> Option<&mut dyn MultiPointed> {
+        None
+    }
+    fn as_multi_pointed(&self) -> Option<&dyn MultiPointed> {
         None
     }
 }
@@ -123,15 +147,13 @@ impl Clone for Box<dyn Drawable> {
 
 /// One point that can be read / written.
 pub trait SinglePointed {
-    /// The *current* position of the object.
+    /// The current position of the object.
     fn position(&self) -> Point<u16>;
     /// Change the stored position.
     fn set_position(&mut self, p: Point<u16>);
 }
 
-/// Two points (start & end).  The default implementation could simply
-/// forward to `SinglePointed` if you want a single‑point shape to be usable
-/// as a “first point” of a double‑point shape.
+/// Two points (start & end)
 pub trait DoublePointed {
     /// Return the two defining points.
     fn start(&self) -> Point<u16>;
@@ -140,4 +162,18 @@ pub trait DoublePointed {
     /// Mutably change one of them.
     fn set_start(&mut self, p: Point<u16>);
     fn set_end(&mut self, p: Point<u16>);
+}
+
+/// A collection of points
+/// intended for general shapes, usually is implemented
+/// when a variable amount of points and or more than two Points are needed for a drawable
+pub trait MultiPointed {
+    /// get a point at the given index
+    fn get_point(&self, idx: usize) -> Option<Point<u16>>;
+    /// set a point at the given index
+    fn set_point(&mut self, idx: usize, p: Point<u16>);
+    /// get all current points
+    fn points(&self) -> &[Point<u16>];
+    /// replace all current points
+    fn set_points(&mut self, points: Vec<Point<u16>>);
 }
