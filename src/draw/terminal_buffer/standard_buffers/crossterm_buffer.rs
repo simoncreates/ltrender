@@ -1,57 +1,78 @@
 use std::{
     collections::HashMap,
-    io::{Write, stdout},
-};
-
-use ascii_assets;
-use common_stdx::Point;
-use crossterm::{
-    cursor::MoveTo,
-    queue,
-    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
+    io::{BufWriter, Stdout, Write, stdout},
 };
 
 use crate::draw::{
     DrawError, ScreenBuffer, UpdateIntervalHandler,
-    terminal_buffer::{CellDrawer, CharacterInfoList, ScreenBufferCore},
+    terminal_buffer::{
+        CellDrawer, CharacterInfoList, ScreenBufferCore, screen_buffer::BatchDrawInfo,
+    },
 };
+use ascii_assets;
+use crossterm::style::Color;
+use std::fmt::Write as FmtWrite;
 
 use crate::default_screen_buffer;
 
 default_screen_buffer!(CrosstermScreenBuffer);
 
-pub fn to_crossterm_color(colour: Option<ascii_assets::Color>) -> crossterm::style::Color {
+pub fn to_crossterm_color(colour: Option<ascii_assets::Color>) -> Color {
     if let Some(colour) = colour {
         if colour.reset {
             Color::Reset
         } else {
             let (r, g, b) = colour.rgb;
-            crossterm::style::Color::Rgb { r, g, b }
+            Color::Rgb { r, g, b }
         }
     } else {
         Color::Reset
     }
 }
-
 impl CellDrawer for CrosstermScreenBuffer {
-    fn set_string(
-        &mut self,
-        pos: Point<u16>,
-        s: &str,
-        fg_color: Option<ascii_assets::Color>,
-        bg_color: Option<ascii_assets::Color>,
-    ) {
-        let ct_fg_color = to_crossterm_color(fg_color);
-        let ct_bg_color = to_crossterm_color(bg_color);
+    fn set_string(&mut self, batch: BatchDrawInfo) {
+        let text_len: usize = batch.segments.iter().map(|s| s.text.len()).sum();
+        let mut output = String::with_capacity(text_len + 256);
 
-        queue!(
-            self.out,
-            MoveTo(pos.x, pos.y),
-            SetForegroundColor(ct_fg_color),
-            SetBackgroundColor(ct_bg_color),
-            Print(s)
-        )
-        .expect("Failed to write to terminal");
+        let _ = write!(output, "\x1b[{};{}H", batch.y + 1, batch.start_x + 1);
+
+        let mut current_fg: Option<Color> = None;
+        let mut current_bg: Option<Color> = None;
+
+        for seg in &batch.segments {
+            let desired_fg = to_crossterm_color(seg.fg_color);
+            let desired_bg = to_crossterm_color(seg.bg_color);
+
+            if current_fg.as_ref() != Some(&desired_fg) {
+                match desired_fg {
+                    Color::Reset => output.push_str("\x1b[39m"),
+                    Color::Rgb { r, g, b } => {
+                        let _ = write!(output, "\x1b[38;2;{};{};{}m", r, g, b);
+                    }
+                    _ => {}
+                }
+                current_fg = Some(desired_fg);
+            }
+
+            if current_bg.as_ref() != Some(&desired_bg) {
+                match desired_bg {
+                    Color::Reset => output.push_str("\x1b[49m"),
+                    Color::Rgb { r, g, b } => {
+                        let _ = write!(output, "\x1b[48;2;{};{};{}m", r, g, b);
+                    }
+                    _ => {}
+                }
+                current_bg = Some(desired_bg);
+            }
+
+            output.push_str(&seg.text);
+        }
+
+        output.push_str("\x1b[0m");
+
+        if let Err(e) = self.out.write_all(output.as_bytes()) {
+            log::error!("Failed to write to terminal BufWriter: {}", e);
+        }
     }
 
     fn flush(&mut self) -> Result<(), DrawError> {

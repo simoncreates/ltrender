@@ -47,31 +47,31 @@ fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point
 
 fn main() -> Result<(), AppError> {
     init_terminal()?;
-    generate_sprites()?;
+    // generate_sprites()?;
 
-    let sprite_path = "assets/debugging/test_video.ascv";
+    // let sprite_path = "assets/debugging/test_video.ascv";
     setup_logger("./log.txt".to_string())?;
     let mut rng = rand::thread_rng();
 
     let term_size = size()?;
     let mut r = Renderer::<CrosstermScreenBuffer>::create_renderer(term_size);
-    r.set_render_mode(RenderMode::Instant);
-    let sprite_id = r.register_sprite_from_source(sprite_path, None)?;
+    r.set_update_interval_expand_amount(300000);
+    // let sprite_id = r.register_sprite_from_source(sprite_path, None)?;
 
     // create screen
     let screen_id = r.create_screen(Rect::from_coords(0, 0, term_size.0, term_size.1), 7);
 
-    let layer = 1;
-    let position = Point { x: 0, y: 0 };
-    let obj = DrawObject {
-        layer,
-        drawable: Box::new(SpriteDrawable {
-            position,
-            sprite_id,
-        }),
-    };
+    // let layer = 1;
+    // let position = Point { x: 0, y: 0 };
+    // let obj = DrawObject {
+    //     layer,
+    //     drawable: Box::new(SpriteDrawable {
+    //         position,
+    //         sprite_id,
+    //     }),
+    // };
 
-    let obj_id = r.register_drawable(screen_id, obj)?;
+    // let obj_id = r.register_drawable(screen_id, obj)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
     for i in 0..30 {
@@ -121,7 +121,9 @@ fn main() -> Result<(), AppError> {
     let mut frames_since_last = 0;
 
     let mut running = true;
-    while running {
+    let mut max = 0;
+    while running && max < 1000 {
+        max += 1;
         let start = Instant::now();
 
         if poll(Duration::from_millis(10))? {
@@ -134,9 +136,6 @@ fn main() -> Result<(), AppError> {
                             frame_time.iter().sum::<Duration>().as_millis() as f64
                                 / frame_time.len() as f64
                         );
-                    }
-                    if k.code == KeyCode::Right {
-                        r.move_drawable_by(obj_id, 1, 0)?;
                     }
                 }
                 Event::Resize(new_cols, new_rows) => {
@@ -166,14 +165,15 @@ fn main() -> Result<(), AppError> {
                 });
             }
             r.replace_drawable_points(anim.id, new_pts)?;
+            r.render_drawable(anim.id)?;
         }
 
-        r.render_drawable(obj_id)?;
+        // r.render_drawable(obj_id)?;
 
         let frame_duration = start.elapsed();
         frame_time.push(frame_duration);
 
-        thread::sleep(Duration::from_millis(200));
+        // thread::sleep(Duration::from_millis(2000));
 
         frames_since_last += 1;
         if last_report.elapsed() >= Duration::from_secs(1) {
@@ -187,6 +187,7 @@ fn main() -> Result<(), AppError> {
             last_report = Instant::now();
             frames_since_last = 0;
         }
+        r.render_frame()?;
     }
 
     restore_terminal()?;

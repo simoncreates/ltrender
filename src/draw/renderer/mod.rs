@@ -25,8 +25,9 @@ where
     screens: HashMap<ScreenKey, Screen>,
     obj_library: DrawObjectLibrary,
     screen_buffer: B,
-    pub sprites: SpriteRegistry,
-    pub render_mode: RenderMode,
+    sprites: SpriteRegistry,
+    render_mode: RenderMode,
+    update_interval_expand_amount: usize,
 }
 
 impl<B> Renderer<B>
@@ -37,6 +38,11 @@ where
         self.render_mode = mode;
     }
 
+    /// set how aggrisive draw batches should try to merge
+    pub fn set_update_interval_expand_amount(&mut self, amount: usize) {
+        self.update_interval_expand_amount = amount;
+    }
+
     /// Create a new renderer with an initial terminal size.
     pub fn create_renderer(size: (u16, u16)) -> Self {
         Renderer {
@@ -45,6 +51,7 @@ where
             screen_buffer: B::new(size),
             sprites: SpriteRegistry::new(),
             render_mode: RenderMode::Buffered,
+            update_interval_expand_amount: 50000,
         }
     }
 
@@ -190,7 +197,7 @@ where
     /// Flush the buffer to the terminal.
     pub fn refresh(&mut self, forced: bool) -> Result<(), DrawError> {
         if RenderMode::Instant == self.render_mode || forced {
-            B::update_terminal(&mut self.screen_buffer)?;
+            B::update_terminal(&mut self.screen_buffer, self.update_interval_expand_amount)?;
         }
         Ok(())
     }

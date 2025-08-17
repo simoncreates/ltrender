@@ -1,27 +1,22 @@
-use std::{collections::HashMap, fmt::Debug};
-
 use crate::draw::{
     DrawError, DrawObject, DrawableId, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
     terminal_buffer::{CharacterInfo, CharacterInfoList},
 };
 use common_stdx::Rect;
 
+use std::{collections::HashMap, fmt::Debug};
+
 use ascii_assets::Color;
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
+use log::info;
 
 /// Trait that describes how to write a single character and flush the
 /// underlying output device.
 pub trait CellDrawer: Sized + Debug {
     /// Write a string at an absolute position.
     /// also used for drawing single character
-    fn set_string(
-        &mut self,
-        pos: Point<u16>,
-        s: &str,
-        fg_color: Option<Color>,
-        bg_color: Option<Color>,
-    );
+    fn set_string(&mut self, batch: BatchDrawInfo);
 
     /// Flush any buffered output to the terminal (or other destination).
     fn flush(&mut self) -> Result<(), DrawError>;
@@ -40,24 +35,29 @@ pub trait ScreenBufferCore: Sized + Debug {
 
     // helpers
     /// Merge a map of  intervals into the existing interval set.
-    fn merge_intervals(&mut self, map: HashMap<u16, Vec<UpdateInterval>>) {
+    fn merge_redraw_regions(&mut self, map: HashMap<u16, Vec<UpdateInterval>>) {
         self.intervals_mut().merge_redraw_regions(map);
     }
 
     /// Mark the whole screen as dirty
     fn invalidate_entire_screen(&mut self) {
-        let size = self.size();
-        self.intervals_mut().invalidate_entire_screen(size);
+        self.intervals_mut().invalidate_entire_screen();
     }
 }
 
-pub struct BatchDrawInfo {
-    start_x: u16,
-    fg_color: Option<Color>,
-    bg_color: Option<Color>,
-    buffer: String,
+#[derive(Debug, Clone)]
+pub struct BatchSegment {
+    pub text: String,
+    pub fg_color: Option<Color>,
+    pub bg_color: Option<Color>,
 }
 
+#[derive(Debug, Clone)]
+pub struct BatchDrawInfo {
+    pub start_x: u16,
+    pub y: u16,
+    pub segments: Vec<BatchSegment>,
+}
 /// public API that combines the core bookkeeping with the drawing layer
 pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
     fn new(size: (u16, u16)) -> Self
@@ -75,7 +75,7 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
     ) -> Result<(), DrawError> {
         let drawable = &mut obj.drawable;
         let map = drawable.bounding_iv(sprites);
-        self.merge_intervals(map);
+        self.merge_redraw_regions(map);
 
         for rd in drawable.draw(sprites)? {
             if !bounds.contains(rd.pos) {
@@ -108,100 +108,80 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
     ) {
         let drawable = &*obj.drawable;
         let map = drawable.bounding_iv(sprites);
-        self.merge_intervals(map.clone());
+        self.merge_redraw_regions(map.clone());
 
         for ci in self.cell_info_mut() {
             ci.info.remove(&obj_id);
         }
     }
-    fn update_terminal(&mut self) -> Result<(), DrawError> {
+    fn update_terminal(&mut self, expand: usize) -> Result<(), DrawError> {
+        self.intervals_mut().expand_regions(expand);
         self.intervals_mut().merge_intervals();
-        let intervals_per_row = self.intervals_mut().dump_intervals();
+        let intervals = self.intervals_mut().dump_intervals();
+        info!("redrawing {:?} intervals", intervals.len());
         let (cols, rows) = self.size();
 
-        for (y, ivs) in intervals_per_row {
-            if y >= rows {
-                continue;
-            }
+        for iv in intervals {
+            let (start, end) = iv.interval;
+            let max_idx = cols as usize * rows as usize;
+            let start = start.min(max_idx);
+            let end = end.min(max_idx);
 
-            for _iv in ivs {
-                let mut writes: Vec<BatchDrawInfo> = Vec::new();
+            let cells = self.cell_info_mut();
+            let mut batch = BatchDrawInfo {
+                start_x: 0,
+                y: 0,
+                segments: Vec::new(),
+            };
+            let mut current_segment: Option<BatchSegment> = None;
 
+            for idx in start..end {
+                let y = (idx / cols as usize) as u16;
+                let x = (idx % cols as usize) as u16;
+
+                let chr_to_write = if let Some(ci_opt) = cells[idx]
+                    .info
+                    .values()
+                    .max_by_key(|c| (c.screen_layer, c.layer))
                 {
-                    let cells = self.cell_info_mut();
+                    ci_opt.chr
+                } else {
+                    TerminalChar {
+                        chr: ' ',
+                        fg_color: None,
+                        bg_color: None,
+                    }
+                };
 
-                    let mut current_x: Option<u16> = None;
-                    let mut current_colors: Option<(Option<Color>, Option<Color>)> = None;
-                    let mut current_buf = String::new();
+                let colors = (chr_to_write.fg_color, chr_to_write.bg_color);
 
-                    for x in 0..cols {
-                        let idx = (y as usize) * cols as usize + x as usize;
-
-                        let chr_to_write = if let Some(ci_opt) = cells[idx]
-                            .info
-                            .values()
-                            .max_by_key(|c| (c.screen_layer, c.layer))
-                        {
-                            ci_opt.chr
-                        } else {
-                            TerminalChar {
-                                chr: ' ',
-                                fg_color: None,
-                                bg_color: None,
-                            }
+                if current_segment.is_none() {
+                    current_segment = Some(BatchSegment {
+                        text: chr_to_write.chr.to_string(),
+                        fg_color: colors.0,
+                        bg_color: colors.1,
+                    });
+                    batch.start_x = x;
+                    batch.y = y;
+                } else if let Some(seg) = &mut current_segment {
+                    if seg.fg_color == colors.0 && seg.bg_color == colors.1 {
+                        seg.text.push(chr_to_write.chr);
+                    } else {
+                        batch.segments.push(seg.clone());
+                        *seg = BatchSegment {
+                            text: chr_to_write.chr.to_string(),
+                            fg_color: colors.0,
+                            bg_color: colors.1,
                         };
-
-                        let colors = (chr_to_write.fg_color, chr_to_write.bg_color);
-
-                        if current_x.is_none() {
-                            // new batch
-                            current_x = Some(x);
-                            current_colors = Some(colors);
-                            current_buf.push(chr_to_write.chr);
-                        } else if Some(colors) == current_colors {
-                            // same color, append
-                            current_buf.push(chr_to_write.chr);
-                        } else {
-                            // color changed, store previous
-                            writes.push(BatchDrawInfo {
-                                start_x: current_x.unwrap(),
-                                buffer: current_buf.clone(),
-                                fg_color: current_colors.unwrap().0,
-                                bg_color: current_colors.unwrap().1,
-                            });
-
-                            // start new
-                            current_x = Some(x);
-                            current_colors = Some(colors);
-                            current_buf.clear();
-                            current_buf.push(chr_to_write.chr);
-                        }
                     }
-
-                    // flush the last batch if any
-                    if let (Some(start_x), Some(colors)) = (current_x, current_colors) {
-                        if !current_buf.is_empty() {
-                            writes.push(BatchDrawInfo {
-                                start_x,
-                                buffer: current_buf.clone(),
-                                fg_color: colors.0,
-                                bg_color: colors.1,
-                            });
-                        }
-                    }
-                }
-
-                // send batched writes
-                for BatchDrawInfo {
-                    start_x,
-                    buffer,
-                    fg_color,
-                    bg_color,
-                } in writes
-                {
-                    self.set_string(Point { x: start_x, y }, &buffer, fg_color, bg_color);
                 }
             }
+
+            if let Some(seg) = current_segment {
+                batch.segments.push(seg);
+            }
+
+            self.set_string(batch);
         }
 
         self.flush()
@@ -230,7 +210,7 @@ macro_rules! default_screen_buffer {
         pub struct $name {
             cells: Vec<CharacterInfoList>,
             intervals: UpdateIntervalHandler,
-            out: std::io::Stdout,
+            out: BufWriter<Stdout>,
             size: (u16, u16),
         }
         impl ScreenBufferCore for $name {
@@ -256,9 +236,9 @@ macro_rules! default_screen_buffer {
                         };
                         capacity
                     ],
-                    intervals: UpdateIntervalHandler::new(),
+                    intervals: UpdateIntervalHandler::new(size.0, size.1),
                     size,
-                    out: stdout(),
+                    out: BufWriter::new(stdout()),
                 }
             }
         }

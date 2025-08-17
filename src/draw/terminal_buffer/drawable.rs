@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 pub fn convert_rect_to_update_intervals(rect: Rect<u16>) -> HashMap<u16, Vec<UpdateInterval>> {
     let mut intervals: HashMap<u16, Vec<UpdateInterval>> = HashMap::new();
-    let iv = (rect.p1.x, rect.p2.x);
+    let iv = (rect.p1.x as usize, rect.p2.x as usize);
 
     for y in rect.p1.y..rect.p2.y {
         let intv = UpdateInterval {

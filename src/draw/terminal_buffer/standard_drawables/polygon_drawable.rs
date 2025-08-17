@@ -281,7 +281,7 @@ impl Drawable for PolygonDrawable {
             let ivs = row_intervals
                 .into_iter()
                 .map(|(start, end)| crate::draw::UpdateInterval {
-                    interval: (start, end),
+                    interval: (start as usize, end as usize),
                     iv_type: UpdateIntervalType::Optimized,
                 })
                 .collect();
