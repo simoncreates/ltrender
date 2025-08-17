@@ -32,14 +32,15 @@ struct PolyAnim {
 }
 
 fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point<u16>> {
+    let mut rng = rand::thread_rng();
     let mut pts = Vec::with_capacity(sides);
     for i in 0..sides {
         let theta = 2.0 * std::f64::consts::PI * (i as f64) / (sides as f64);
         let x = cx + r * theta.cos();
         let y = cy + r * theta.sin();
         pts.push(Point {
-            x: x.round() as u16,
-            y: y.round() as u16,
+            x: x.round() as u16 + rng.gen_range(-10..=10) as u16,
+            y: y.round() as u16 + rng.gen_range(-10..=10) as u16,
         });
     }
     pts
@@ -55,7 +56,7 @@ fn main() -> Result<(), AppError> {
 
     let term_size = size()?;
     let mut r = Renderer::<CrosstermScreenBuffer>::create_renderer(term_size);
-    r.set_update_interval_expand_amount(300000);
+    r.set_update_interval_expand_amount(20);
     // let sprite_id = r.register_sprite_from_source(sprite_path, None)?;
 
     // create screen
@@ -74,11 +75,11 @@ fn main() -> Result<(), AppError> {
     // let obj_id = r.register_drawable(screen_id, obj)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
-    for i in 0..30 {
-        let cx = rng.gen_range(10..term_size.0 - 10) as f64;
-        let cy = rng.gen_range(5..term_size.1 - 5) as f64;
-        let radius = rng.gen_range(3..8) as f64;
-        let sides = rng.gen_range(3..7);
+    for i in 0..40 {
+        let cx = rng.gen_range(20..term_size.0 - 20) as f64;
+        let cy = rng.gen_range(20..term_size.1 - 20) as f64;
+        let radius = rng.gen_range(3..20) as f64;
+        let sides = rng.gen_range(3..5);
         let speed = rng.gen_range(0.5..1.5);
 
         let colors = [
@@ -91,12 +92,13 @@ fn main() -> Result<(), AppError> {
             Color::White,
         ];
         let border_style = TerminalChar::with_fg('#', colors[i % colors.len()]);
+        let fill_style = TerminalChar::with_fg('#', colors[(i + 2) % colors.len()]);
 
         let obj = DrawObject {
-            layer: 1338,
+            layer: i + 5,
             drawable: Box::new(PolygonDrawable {
                 points: vec![],
-                fill_style: None,
+                fill_style: Some(fill_style),
                 border_style,
             }),
         };
@@ -136,6 +138,9 @@ fn main() -> Result<(), AppError> {
                             frame_time.iter().sum::<Duration>().as_millis() as f64
                                 / frame_time.len() as f64
                         );
+                    }
+                    if k.code == KeyCode::Right {
+                        // r.move_drawable_by(obj_id, 1, 0)?;
                     }
                 }
                 Event::Resize(new_cols, new_rows) => {
