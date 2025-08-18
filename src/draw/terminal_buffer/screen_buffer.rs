@@ -4,21 +4,19 @@ use crate::draw::{
 };
 use common_stdx::Rect;
 
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, sync::mpsc::Sender};
 
 use ascii_assets::Color;
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
-use log::info;
 
-/// Trait that describes how to write a single character and flush the
-/// underlying output device.
-pub trait CellDrawer: Sized + Debug {
+/// Trait that describes how to write a string of chars
+pub trait CellDrawer: Debug {
     /// Write a string at an absolute position.
     /// also used for drawing single character
     fn set_string(&mut self, batch: BatchDrawInfo);
 
-    /// Flush any buffered output to the terminal (or other destination).
+    /// Flush any buffered output to the terminal, or any other output that you might prefer
     fn flush(&mut self) -> Result<(), DrawError>;
 }
 
@@ -58,8 +56,9 @@ pub struct BatchDrawInfo {
     pub y: u16,
     pub segments: Vec<BatchSegment>,
 }
+
 /// public API that combines the core bookkeeping with the drawing layer
-pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
+pub trait ScreenBuffer: ScreenBufferCore {
     fn new(size: (u16, u16)) -> Self
     where
         Self: Sized;
@@ -96,6 +95,7 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
             let idx = self.idx_of(rd.pos);
             self.cell_info_mut()[idx].info.insert(obj_id, ci);
         }
+
         Ok(())
     }
 
@@ -118,7 +118,6 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
         self.intervals_mut().expand_regions(expand);
         self.intervals_mut().merge_intervals();
         let intervals = self.intervals_mut().dump_intervals();
-        info!("redrawing {:?} intervals", intervals.len());
         let (cols, rows) = self.size();
 
         for iv in intervals {
@@ -181,10 +180,18 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
                 batch.segments.push(seg);
             }
 
-            self.set_string(batch);
+            if let Err(e) = self
+                .drawer_sender()
+                .send(CellDrawerCommand::SetString(batch))
+            {
+                log::error!("Failed to send SetString to drawer thread: {}", e);
+            }
         }
 
-        self.flush()
+        if let Err(e) = self.drawer_sender().send(CellDrawerCommand::Flush) {
+            log::error!("Failed to send Flush to drawer thread: {}", e);
+        }
+        Ok(())
     }
 
     fn mark_all_dirty(&mut self, new_size: (u16, u16)) {
@@ -197,22 +204,90 @@ pub trait ScreenBuffer: ScreenBufferCore + CellDrawer {
                 });
         }
     }
+    fn drawer_sender(&self) -> std::sync::mpsc::SyncSender<CellDrawerCommand>;
 
     fn idx_of(&self, pos: Point<u16>) -> usize {
         (pos.y as usize) * self.size().0 as usize + pos.x as usize
     }
 }
 
+#[derive(Debug)]
+pub enum CellDrawerCommand {
+    SetString(BatchDrawInfo),
+    Flush,
+}
+
 #[macro_export]
-macro_rules! default_screen_buffer {
-    ($name:ident) => {
+macro_rules! spawn_cell_drawer {
+    ($name:ident, $out:expr, $buffersize:expr) => {{
+        use std::sync::mpsc;
+        use std::sync::mpsc::{Receiver, Sender};
+        use std::thread;
+
+        // create the channel
+        let (tx, rx) = mpsc::sync_channel::<CellDrawerCommand>($buffersize);
+
+        // evaluate the expression here so it's moved into the thread below
+        let out = $out;
+
+        // spawn a thread that owns the receiver and the writer
+        let handle = thread::spawn(move || {
+            let mut drawer = $name { rx, out };
+
+            // process commands until the sender(s) are dropped
+            while let Ok(cmd) = drawer.rx.recv() {
+                match cmd {
+                    CellDrawerCommand::SetString(batch) => drawer.set_string(batch),
+                    CellDrawerCommand::Flush => {
+                        if let Err(e) = drawer.flush() {
+                            log::error!("Flush error in drawer thread: {}", e);
+                        }
+                    }
+                }
+            }
+
+            // best-effort final flush
+            let _ = drawer.flush();
+        });
+
+        (tx, handle)
+    }};
+}
+/// ## $name:
+/// The name of the default drawbuffer
+/// ## $drawer:
+/// The name of the cell drawer
+/// ## $buffersize:
+/// the amount of unhandled draw commands, that can be buffered before blocking
+///
+///
+///
+/// ### info:
+/// When using this macro, you are required to create a struct
+/// that implements the `CellDrawer` trait and at minimum looks like this:
+/// ```
+///#[derive(Debug)]
+/// pub struct $drawer {
+///     rx: Receiver<CellDrawerCommand>,
+///     out: BufWriter<Stdout>,
+/// }
+/// ```
+#[macro_export]
+macro_rules! create_drawbuffer {
+    ($name:ident, $drawer:ident, $buffersize:expr) => {
+        use crate::spawn_cell_drawer;
         #[derive(Debug)]
         pub struct $name {
             cells: Vec<CharacterInfoList>,
             intervals: UpdateIntervalHandler,
-            out: BufWriter<Stdout>,
             size: (u16, u16),
+
+            drawer_tx: std::sync::mpsc::SyncSender<CellDrawerCommand>,
+
+            // todo: implement drop handler
+            drawer_handle: std::thread::JoinHandle<()>,
         }
+
         impl ScreenBufferCore for $name {
             fn cell_info_mut(&mut self) -> &mut Vec<CharacterInfoList> {
                 &mut self.cells
@@ -229,6 +304,9 @@ macro_rules! default_screen_buffer {
         impl ScreenBuffer for $name {
             fn new(size: (u16, u16)) -> Self {
                 let capacity = size.0 as usize * size.1 as usize;
+                let out = BufWriter::new(stdout());
+                let (drawer_tx, drawer_handle) = spawn_cell_drawer!($drawer, out, $buffersize);
+
                 $name {
                     cells: vec![
                         CharacterInfoList {
@@ -238,8 +316,12 @@ macro_rules! default_screen_buffer {
                     ],
                     intervals: UpdateIntervalHandler::new(size.0, size.1),
                     size,
-                    out: BufWriter::new(stdout()),
+                    drawer_tx,
+                    drawer_handle,
                 }
+            }
+            fn drawer_sender(&self) -> std::sync::mpsc::SyncSender<CellDrawerCommand> {
+                self.drawer_tx.clone()
             }
         }
     };

@@ -5,11 +5,14 @@ use std::collections::HashMap;
 
 use crate::draw::ScreenBuffer;
 use crate::draw::terminal_buffer::drawable::Drawable;
+use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::{
     DrawError, DrawObject, DrawObjectLibrary, DrawableKey, FileError, Screen, ScreenKey,
     SpriteData, SpriteDrawable, SpriteEntry, SpriteRegistry, error::AppError,
-    terminal_buffer::CrosstermScreenBuffer,
 }; // bring the trait into scope
+
+pub mod render_handle;
+pub use render_handle::RendererHandle;
 
 pub type SpriteId = usize;
 pub type DrawableId = usize;
@@ -18,7 +21,7 @@ pub enum RenderMode {
     Instant,
     Buffered,
 }
-pub struct Renderer<B = CrosstermScreenBuffer>
+pub struct Renderer<B = DefaultScreenBuffer>
 where
     B: ScreenBuffer,
 {
@@ -26,7 +29,7 @@ where
     obj_library: DrawObjectLibrary,
     screen_buffer: B,
     sprites: SpriteRegistry,
-    render_mode: RenderMode,
+    pub render_mode: RenderMode,
     update_interval_expand_amount: usize,
 }
 
@@ -205,9 +208,6 @@ where
     pub fn render_frame(&mut self) -> Result<(), DrawError> {
         self.render_all()?;
         self.refresh(true)?;
-        for screen in self.screens.values_mut() {
-            screen.dump_after_frame();
-        }
         Ok(())
     }
 
@@ -218,6 +218,12 @@ where
             id = id.saturating_add(1);
         }
         id
+    }
+
+    pub fn clear_terminal(&mut self) {
+        for screen in self.screens.values_mut() {
+            screen.dump_after_frame();
+        }
     }
 
     fn get_drawable<F, T>(&self, handle: DrawableKey, mut get_fn: F) -> Result<T, DrawError>

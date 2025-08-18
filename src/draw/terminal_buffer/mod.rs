@@ -8,7 +8,7 @@ pub mod character_info;
 pub use character_info::{CharacterInfo, CharacterInfoList};
 
 pub mod standard_buffers;
-pub use standard_buffers::CrosstermScreenBuffer;
+pub use standard_buffers::DefaultScreenBuffer;
 
 pub mod screen_buffer;
 pub use screen_buffer::{CellDrawer, ScreenBuffer, ScreenBufferCore};

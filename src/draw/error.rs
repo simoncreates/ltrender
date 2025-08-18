@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::draw::SpriteId;
+use std::fmt::Debug;
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -46,4 +47,18 @@ pub enum DrawError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    // Channel errors
+    #[error("Failed to send reply on channel: {0}")]
+    ChannelSendError(String),
+}
+
+// convert to DrawError
+impl<T> From<std::sync::mpsc::SendError<T>> for DrawError
+where
+    T: Debug,
+{
+    fn from(e: std::sync::mpsc::SendError<T>) -> Self {
+        DrawError::ChannelSendError(format!("{:?}", e.0))
+    }
 }

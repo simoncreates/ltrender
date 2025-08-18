@@ -1,2 +1,2 @@
 pub mod crossterm_buffer;
-pub use crossterm_buffer::CrosstermScreenBuffer;
+pub use crossterm_buffer::DefaultScreenBuffer;

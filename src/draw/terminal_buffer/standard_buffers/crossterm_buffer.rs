@@ -1,35 +1,30 @@
 use std::{
     collections::HashMap,
     io::{BufWriter, Stdout, Write, stdout},
+    sync::mpsc::{Receiver, Sender},
 };
 
+use crate::create_drawbuffer;
 use crate::draw::{
     DrawError, ScreenBuffer, UpdateIntervalHandler,
     terminal_buffer::{
-        CellDrawer, CharacterInfoList, ScreenBufferCore, screen_buffer::BatchDrawInfo,
+        CellDrawer, CharacterInfoList, ScreenBufferCore,
+        screen_buffer::{BatchDrawInfo, CellDrawerCommand},
     },
 };
 use ascii_assets;
 use crossterm::style::Color;
 use std::fmt::Write as FmtWrite;
 
-use crate::default_screen_buffer;
+create_drawbuffer!(DefaultScreenBuffer, CrosstermCellDrawer, 20);
 
-default_screen_buffer!(CrosstermScreenBuffer);
-
-pub fn to_crossterm_color(colour: Option<ascii_assets::Color>) -> Color {
-    if let Some(colour) = colour {
-        if colour.reset {
-            Color::Reset
-        } else {
-            let (r, g, b) = colour.rgb;
-            Color::Rgb { r, g, b }
-        }
-    } else {
-        Color::Reset
-    }
+#[derive(Debug)]
+pub struct CrosstermCellDrawer {
+    rx: Receiver<CellDrawerCommand>,
+    out: BufWriter<Stdout>,
 }
-impl CellDrawer for CrosstermScreenBuffer {
+
+impl CellDrawer for CrosstermCellDrawer {
     fn set_string(&mut self, batch: BatchDrawInfo) {
         let text_len: usize = batch.segments.iter().map(|s| s.text.len()).sum();
         let mut output = String::with_capacity(text_len + 256);
@@ -78,5 +73,18 @@ impl CellDrawer for CrosstermScreenBuffer {
     fn flush(&mut self) -> Result<(), DrawError> {
         self.out.flush()?;
         Ok(())
+    }
+}
+
+pub fn to_crossterm_color(colour: Option<ascii_assets::Color>) -> Color {
+    if let Some(colour) = colour {
+        if colour.reset {
+            Color::Reset
+        } else {
+            let (r, g, b) = colour.rgb;
+            Color::Rgb { r, g, b }
+        }
+    } else {
+        Color::Reset
     }
 }

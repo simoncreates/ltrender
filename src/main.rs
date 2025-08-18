@@ -1,27 +1,21 @@
-pub mod draw;
-
 use ascii_assets::{Color, TerminalChar};
 use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, poll, read};
 use crossterm::terminal::size;
-use draw::{DrawError, Renderer, init_terminal, restore_terminal};
 use env_logger::Builder;
 use log::info;
 use rand::Rng as _;
 use std::fs::File;
 use std::io::Write;
-use std::thread;
 use std::time::{Duration, Instant};
 
-mod temp_sprite_creation;
-use temp_sprite_creation::generate_sprites;
-
 use crate::draw::error::AppError;
-use crate::draw::renderer::RenderMode;
-use crate::draw::terminal_buffer::CrosstermScreenBuffer;
+use crate::draw::renderer::RendererHandle;
+use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::terminal_buffer::standard_drawables::PolygonDrawable;
-use crate::draw::{DrawObject, DrawableKey, SpriteDrawable};
+use crate::draw::{DrawObject, DrawableKey};
 
+pub mod draw;
 struct PolyAnim {
     id: DrawableKey,
     center: Point<f64>,
@@ -47,37 +41,22 @@ fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point
 }
 
 fn main() -> Result<(), AppError> {
-    init_terminal()?;
-    // generate_sprites()?;
-
-    // let sprite_path = "assets/debugging/test_video.ascv";
+    crate::draw::init_terminal()?;
     setup_logger("./log.txt".to_string())?;
     let mut rng = rand::thread_rng();
 
     let term_size = size()?;
-    let mut r = Renderer::<CrosstermScreenBuffer>::create_renderer(term_size);
-    r.set_update_interval_expand_amount(20);
-    // let sprite_id = r.register_sprite_from_source(sprite_path, None)?;
+
+    let r = RendererHandle::new::<DefaultScreenBuffer>(term_size, 500);
+    r.set_update_interval(20);
 
     // create screen
     let screen_id = r.create_screen(Rect::from_coords(0, 0, term_size.0, term_size.1), 7);
 
-    // let layer = 1;
-    // let position = Point { x: 0, y: 0 };
-    // let obj = DrawObject {
-    //     layer,
-    //     drawable: Box::new(SpriteDrawable {
-    //         position,
-    //         sprite_id,
-    //     }),
-    // };
-
-    // let obj_id = r.register_drawable(screen_id, obj)?;
-
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
-    for i in 0..40 {
-        let cx = rng.gen_range(20..term_size.0 - 20) as f64;
-        let cy = rng.gen_range(20..term_size.1 - 20) as f64;
+    for i in 0..30 {
+        let cx = rng.gen_range(2..term_size.0 - 2) as f64;
+        let cy = rng.gen_range(2..term_size.1 - 2) as f64;
         let radius = rng.gen_range(3..20) as f64;
         let sides = rng.gen_range(3..5);
         let speed = rng.gen_range(0.5..1.5);
@@ -105,7 +84,7 @@ fn main() -> Result<(), AppError> {
         let poly_id = r.register_drawable(screen_id, obj)?;
 
         let base_points = generate_regular_polygon(cx, cy, radius, sides);
-        r.replace_drawable_points(poly_id, base_points.clone())?;
+        r.replace_drawable_points(poly_id, base_points);
 
         poly_anims.push(PolyAnim {
             id: poly_id,
@@ -139,12 +118,9 @@ fn main() -> Result<(), AppError> {
                                 / frame_time.len() as f64
                         );
                     }
-                    if k.code == KeyCode::Right {
-                        // r.move_drawable_by(obj_id, 1, 0)?;
-                    }
                 }
                 Event::Resize(new_cols, new_rows) => {
-                    r.handle_resize((new_cols, new_rows))?;
+                    r.handle_resize((new_cols, new_rows));
                 }
                 _ => {}
             }
@@ -169,16 +145,11 @@ fn main() -> Result<(), AppError> {
                     y: y.clamp(0.0, (term_size.1 - 1) as f64).round() as u16,
                 });
             }
-            r.replace_drawable_points(anim.id, new_pts)?;
-            r.render_drawable(anim.id)?;
+            r.replace_drawable_points(anim.id, new_pts);
         }
-
-        // r.render_drawable(obj_id)?;
 
         let frame_duration = start.elapsed();
         frame_time.push(frame_duration);
-
-        // thread::sleep(Duration::from_millis(2000));
 
         frames_since_last += 1;
         if last_report.elapsed() >= Duration::from_secs(1) {
@@ -192,14 +163,17 @@ fn main() -> Result<(), AppError> {
             last_report = Instant::now();
             frames_since_last = 0;
         }
-        r.render_frame()?;
+
+        r.render_frame();
+        // r.clear_terminal();
     }
 
-    restore_terminal()?;
+    r.stop();
+    crate::draw::restore_terminal()?;
     Ok(())
 }
 
-fn setup_logger(logfilepath: String) -> Result<(), DrawError> {
+fn setup_logger(logfilepath: String) -> Result<(), AppError> {
     let log_file = File::create(logfilepath)?;
     Builder::new()
         .format_timestamp_secs()
