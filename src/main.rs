@@ -1,4 +1,4 @@
-use ascii_assets::{Color, TerminalChar};
+use ascii_assets::{Color, TerminalChar, TerminalString};
 use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, poll, read};
 use crossterm::terminal::size;
@@ -7,17 +7,20 @@ use log::info;
 use rand::Rng as _;
 use std::fs::File;
 use std::io::Write;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::draw::error::AppError;
 use crate::draw::renderer::RendererHandle;
-use crate::draw::terminal_buffer::screen_buffer::shaders::{FlipHorizontal, FlipVertical};
+use crate::draw::terminal_buffer::screen_buffer::shaders::{
+    FlipDiagonal, FlipHorizontal, FlipVertical, Grayscale,
+};
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::terminal_buffer::standard_drawables::PolygonDrawable;
 use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
-    AnimationInfo, FrameIdent,
+    AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
-use crate::draw::{DrawObject, DrawableKey, SpriteDrawable};
+use crate::draw::{DrawObject, DrawObjectBuilder, DrawableKey};
 
 pub mod draw;
 struct PolyAnim {
@@ -66,32 +69,37 @@ fn main() -> Result<(), AppError> {
     let sprite_id =
         r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())?;
 
-    let video_id = r.register_video_drawable(
-        screen_id,
-        50000,
-        Point::new(3, 3),
-        sprite_id,
-        AnimationInfo::default(),
-        FrameIdent::FirstFrame,
-    )?;
+    let circle_id = DrawObjectBuilder::default()
+        .layer(50)
+        .screen(screen_id)
+        .circle_drawable(|c| {
+            c.radius(4)
+                .center(Point::new(20, 20))
+                .radius(13)
+                .border_style(TerminalChar::with_bg('G', Color::rgb(0, 200, 250)))
+        })?
+        .shader(FlipDiagonal)
+        .build(&mut r)?;
 
-    let obj = DrawObject {
-        layer: 5000,
-        shaders: vec![Box::new(FlipHorizontal), Box::new(FlipVertical)],
-        drawable: Box::new(SpriteDrawable {
-            position: Point { x: 0, y: 0 },
-            sprite_id,
-            last_state_change: std::time::Instant::now(),
-            animation_type: AnimationInfo::Image {
-                frame: FrameIdent::FirstFrame,
-            },
-        }),
-    };
-
-    let sprite_obj_id = r.register_drawable(screen_id, obj)?;
+    let sprite_video_id = DrawObjectBuilder::default()
+        .layer(10)
+        .screen(screen_id)
+        .sprite_drawable(|d| {
+            d.sprite_id(sprite_id)
+                .position(Point::new(0, 0))
+                .animation_type(AnimationInfo::Video {
+                    loop_type: VideoLoopType::Loop,
+                    speed: VideoSpeed::Fps(3),
+                    start_frame: FrameIdent::FirstFrame,
+                    end_frame: FrameIdent::LastFrame,
+                })
+        })?
+        .shader(FlipHorizontal)
+        .shader(Grayscale)
+        .build(&mut r)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
-    for i in 0..30 {
+    for i in 0..3 {
         let cx = rng.gen_range(2..term_size.0 - 2) as f64;
         let cy = rng.gen_range(2..term_size.1 - 2) as f64;
         let radius = rng.gen_range(3..20) as f64;
@@ -157,7 +165,7 @@ fn main() -> Result<(), AppError> {
                         );
                     }
                     if k.code == KeyCode::Char('d') {
-                        r.move_drawable_by(sprite_obj_id, 1, 0);
+                        r.move_drawable_by(sprite_video_id, 1, 0);
                     }
                 }
                 Event::Resize(new_cols, new_rows) => {
@@ -182,11 +190,12 @@ fn main() -> Result<(), AppError> {
                 let y = anim.center.y + anim.radius * theta.sin();
 
                 new_pts.push(Point {
-                    x: x.clamp(0.0, (term_size.0 - 1) as f64).round() as u16,
-                    y: y.clamp(0.0, (term_size.1 - 1) as f64).round() as u16,
+                    x: x as u16,
+                    y: y as u16,
                 });
             }
             r.replace_drawable_points(anim.id, new_pts);
+            r.render_drawable(anim.id);
         }
 
         let frame_duration = start.elapsed();
@@ -205,10 +214,12 @@ fn main() -> Result<(), AppError> {
             frames_since_last = 0;
         }
 
-        r.render_drawable(sprite_obj_id);
-        r.render_drawable(video_id);
+        //thread::sleep(Duration::from_millis(80));
+
+        r.render_drawable(sprite_video_id);
+        r.render_drawable(circle_id);
         r.render_frame();
-        // r.clear_terminal();
+        r.clear_terminal();
     }
 
     r.stop();

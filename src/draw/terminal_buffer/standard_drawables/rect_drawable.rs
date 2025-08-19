@@ -49,7 +49,7 @@ impl DoublePointed for RectDrawable {
 
 impl Drawable for RectDrawable {
     fn size(&self, _sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError> {
-        let size = self.rect.p2 - self.rect.p1;
+        let size = (self.rect.p2 - self.rect.p1) + Point::new(1, 1);
         Ok((size.x as u16, size.y as u16))
     }
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
@@ -60,10 +60,12 @@ impl Drawable for RectDrawable {
             return Ok(Vec::new());
         }
 
-        // Preallocate the output vector with the maximum possible size
-        let mut out = Vec::with_capacity(
-            (self.rect.p2.x - self.rect.p1.x + 1) * (self.rect.p2.y - self.rect.p1.y + 1),
-        );
+        let expected = if self.fill_style.is_some() {
+            (self.rect.p2.x - self.rect.p1.x + 1) * (self.rect.p2.y - self.rect.p1.y + 1)
+        } else {
+            2 * (self.rect.p2.x - self.rect.p1.x + 1 + self.rect.p2.y - self.rect.p1.y + 1)
+        };
+        let mut out = Vec::with_capacity(expected);
 
         for y in self.rect.p1.y..=self.rect.p2.y {
             for x in self.rect.p1.x..=self.rect.p2.x {

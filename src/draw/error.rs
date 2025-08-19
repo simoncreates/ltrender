@@ -9,6 +9,9 @@ pub enum AppError {
     File(#[from] FileError),
 
     #[error(transparent)]
+    DrawObjectBuilder(#[from] DrawObjectBuilderError),
+
+    #[error(transparent)]
     Draw(#[from] DrawError),
 
     #[error(transparent)]
@@ -54,6 +57,34 @@ pub enum DrawError {
     // Channel errors
     #[error("Failed to send reply on channel: {0}")]
     ChannelSendError(String),
+}
+
+#[derive(Debug, Error)]
+
+pub enum DrawObjectBuilderError {
+    #[error("No Drawable added to the object")]
+    NoDrawableAdded(),
+
+    #[error("No layer added to the object")]
+    NoLayerAdded(),
+
+    #[error("No screen ID added to the object")]
+    NoScreenAdded(),
+
+    #[error("Failed to build the sprite object")]
+    FailedToBuildSpriteObject(),
+
+    #[error("Failed to build the circle object")]
+    FailedToBuildCircleObject(),
+
+    #[error("Failed to build the line object")]
+    FailedToBuildLineObject(),
+
+    #[error("Failed to build the polygon object")]
+    FailedToBuildPolygonObject(),
+
+    #[error("Failed to build the rect object")]
+    FailedToBuildRectObject(),
 }
 
 // convert to DrawError

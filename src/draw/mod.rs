@@ -14,3 +14,5 @@ pub mod display_screen;
 pub use display_screen::{Screen, ScreenKey};
 pub mod drawable_register;
 pub use drawable_register::{DrawObject, DrawObjectLibrary, DrawableKey};
+pub mod draw_object_builder;
+pub use draw_object_builder::DrawObjectBuilder;
