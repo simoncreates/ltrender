@@ -123,6 +123,8 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     /// ```
     fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable>;
 
+    fn size(&self, sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError>;
+
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         None
     }

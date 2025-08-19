@@ -27,6 +27,7 @@ impl Screen {
         DrawObject {
             layer: obj.layer,
             drawable: shifted_drawable,
+            shaders: obj.shaders.clone(),
         }
     }
 

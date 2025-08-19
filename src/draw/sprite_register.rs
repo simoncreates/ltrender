@@ -1,26 +1,13 @@
-use ascii_assets::{AsciiSprite, AsciiVideo};
-#[derive(Clone, Debug)]
-pub enum SpriteData {
-    Sprite(AsciiSprite),
-    SpriteVideo(AsciiVideo),
-}
+use ascii_assets::AsciiVideo;
 
 #[derive(Clone, Debug)]
 pub struct SpriteEntry {
-    pub(crate) info: SpriteData,
+    pub(crate) info: AsciiVideo,
 }
 
 impl SpriteEntry {
     pub fn size(&self) -> (usize, usize, usize) {
-        match &self.info {
-            SpriteData::Sprite(sprite) => {
-                let frames = 1;
-                let height = sprite.height;
-                let width = sprite.width;
-                (frames, height as usize, width as usize)
-            }
-            SpriteData::SpriteVideo(video) => video.size(),
-        }
+        self.info.size()
     }
 }
 

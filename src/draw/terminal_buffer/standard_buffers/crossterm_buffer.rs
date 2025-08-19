@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     io::{BufWriter, Stdout, Write, stdout},
-    sync::mpsc::{Receiver, Sender},
+    sync::mpsc::Receiver,
 };
 
 use crate::create_drawbuffer;

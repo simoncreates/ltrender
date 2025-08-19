@@ -12,4 +12,3 @@ powerful rendering engine for terminal tools and games.
 
 ## to improve
 - polygon performance
-- move out.flush into its own thread

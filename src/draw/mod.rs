@@ -5,7 +5,7 @@ pub use update_interval_handler::{UpdateInterval, UpdateIntervalHandler};
 pub mod terminal_buffer;
 pub use terminal_buffer::{ScreenBuffer, SpriteDrawable};
 pub mod sprite_register;
-pub use sprite_register::{SpriteData, SpriteEntry, SpriteRegistry};
+pub use sprite_register::{SpriteEntry, SpriteRegistry};
 pub mod term_utils;
 pub use term_utils::{init_terminal, restore_terminal};
 pub mod error;

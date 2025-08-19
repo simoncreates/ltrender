@@ -6,9 +6,12 @@ use std::collections::HashMap;
 use crate::draw::ScreenBuffer;
 use crate::draw::terminal_buffer::drawable::Drawable;
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
+use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
+    AnimationInfo, FrameIdent,
+};
 use crate::draw::{
-    DrawError, DrawObject, DrawObjectLibrary, DrawableKey, FileError, Screen, ScreenKey,
-    SpriteData, SpriteDrawable, SpriteEntry, SpriteRegistry, error::AppError,
+    DrawError, DrawObject, DrawObjectLibrary, DrawableKey, Screen, ScreenKey, SpriteDrawable,
+    SpriteEntry, SpriteRegistry, error::AppError,
 }; // bring the trait into scope
 
 pub mod render_handle;
@@ -103,39 +106,50 @@ where
         layer: usize,
         position: Point<u16>,
         sprite_id: SpriteId,
+        frame: FrameIdent,
     ) -> Result<DrawableKey, DrawError> {
         let obj = DrawObject {
             layer,
+            shaders: Vec::new(),
             drawable: Box::new(SpriteDrawable {
                 position,
                 sprite_id,
+                last_state_change: std::time::Instant::now(),
+                animation_type: AnimationInfo::Image { frame },
+            }),
+        };
+
+        self.register_drawable(screen_id, obj)
+    }
+
+    /// Register a video drawable on a screen.
+    pub fn register_video_drawable(
+        &mut self,
+        screen_id: ScreenKey,
+        layer: usize,
+        position: Point<u16>,
+        sprite_id: SpriteId,
+        animation_info: AnimationInfo,
+    ) -> Result<DrawableKey, DrawError> {
+        let obj = DrawObject {
+            layer,
+            shaders: Vec::new(),
+            drawable: Box::new(SpriteDrawable {
+                position,
+                sprite_id,
+                last_state_change: std::time::Instant::now(),
+                animation_type: animation_info,
             }),
         };
         self.register_drawable(screen_id, obj)
     }
 
     /// Load a sprite from an ASCII video file.
-    pub fn register_sprite_from_source(
-        &mut self,
-        path: &str,
-        frame: Option<usize>,
-    ) -> Result<SpriteId, AppError> {
+    pub fn register_sprite_from_source(&mut self, path: &str) -> Result<SpriteId, AppError> {
         let video = AsciiVideo::read_from_file(path)?;
-        let opt_sprite = if let Some(frame) = frame {
-            video.frames.get(frame).cloned()
-        } else {
-            video.frames.first().cloned()
-        };
-        let sprite_id = if let Some(sprite) = opt_sprite {
-            self.sprites.add(SpriteEntry {
-                info: SpriteData::Sprite(sprite),
-            })
-        } else {
-            return Err(AppError::File(FileError::VideoFrameNotFound {
-                video_path: path.to_string(),
-                frame_id: frame.unwrap_or(0),
-            }));
-        };
+
+        let sprite_id = self.sprites.add(SpriteEntry { info: video });
+
         Ok(sprite_id)
     }
 

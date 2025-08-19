@@ -7,7 +7,9 @@ use common_stdx::{Point, Rect};
 
 use crate::draw::{
     DrawError, DrawObject, DrawableKey, Renderer, ScreenBuffer, ScreenKey, SpriteId,
-    error::AppError, renderer::RenderMode,
+    error::AppError,
+    renderer::RenderMode,
+    terminal_buffer::standard_drawables::sprite_drawable::{AnimationInfo, FrameIdent},
 };
 
 pub struct RendererHandle {
@@ -41,6 +43,10 @@ impl RendererHandle {
         reply_rx.recv().unwrap()
     }
 
+    pub fn render_drawable(&self, id: DrawableKey) {
+        let _ = self.tx.send(RendererCommand::RenderDrawable(id));
+    }
+
     pub fn register_drawable(
         &self,
         screen_id: ScreenKey,
@@ -53,10 +59,58 @@ impl RendererHandle {
         reply_rx.recv().unwrap()
     }
 
+    pub fn register_sprite_drawable(
+        &mut self,
+        screen_id: ScreenKey,
+        layer: usize,
+        position: Point<u16>,
+        sprite_id: SpriteId,
+        frame: FrameIdent,
+    ) -> Result<DrawableKey, AppError> {
+        let (reply_tx, reply_rx) = mpsc::channel();
+        let _ = self.tx.send(RendererCommand::RegisterSpriteDrawable(
+            screen_id, layer, position, sprite_id, frame, reply_tx,
+        ));
+        reply_rx.recv().unwrap()
+    }
+
+    pub fn register_video_drawable(
+        &mut self,
+        screen_id: ScreenKey,
+        layer: usize,
+        position: Point<u16>,
+        sprite_id: SpriteId,
+        animation_info: AnimationInfo,
+        frame: FrameIdent,
+    ) -> Result<DrawableKey, AppError> {
+        let (reply_tx, reply_rx) = mpsc::channel();
+        let _ = self.tx.send(RendererCommand::RegisterVideoDrawable(
+            screen_id,
+            layer,
+            position,
+            sprite_id,
+            animation_info,
+            reply_tx,
+        ));
+        reply_rx.recv().unwrap()
+    }
+
+    pub fn register_sprite_from_source(&self, path: String) -> Result<SpriteId, AppError> {
+        let (reply_tx, reply_rx) = mpsc::channel();
+        let _ = self
+            .tx
+            .send(RendererCommand::RegisterSpriteFromSource(path, reply_tx));
+        reply_rx.recv().unwrap()
+    }
+
     pub fn replace_drawable_points(&self, id: DrawableKey, pts: Vec<Point<u16>>) {
         let _ = self
             .tx
             .send(RendererCommand::ReplaceDrawablePoints(id, pts));
+    }
+
+    pub fn move_drawable_by(&self, id: DrawableKey, dx: i32, dy: i32) {
+        let _ = self.tx.send(RendererCommand::MoveDrawableBy(id, dx, dy));
     }
 
     pub fn render_frame(&self) {
@@ -97,11 +151,29 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
                 RendererCommand::RemoveDrawable(id) => {
                     let _ = r.remove_drawable(id);
                 }
-                RendererCommand::RegisterSpriteDrawable(s, l, pos, id) => {
-                    let _ = r.register_sprite_drawable(s, l, pos, id);
+                RendererCommand::RegisterSpriteDrawable(s, l, pos, id, frame, reply) => {
+                    let result = r.register_sprite_drawable(s, l, pos, id, frame);
+                    let _ = reply.send(result.map_err(Into::into));
                 }
-                RendererCommand::RegisterSpriteFromSource(path, frame, reply) => {
-                    let result = r.register_sprite_from_source(&path, frame);
+                RendererCommand::RegisterVideoDrawable(
+                    screen_id,
+                    layer,
+                    position,
+                    sprite_id,
+                    animation_info,
+                    reply,
+                ) => {
+                    let result = r.register_video_drawable(
+                        screen_id,
+                        layer,
+                        position,
+                        sprite_id,
+                        animation_info,
+                    );
+                    let _ = reply.send(result.map_err(Into::into));
+                }
+                RendererCommand::RegisterSpriteFromSource(path, reply) => {
+                    let result = r.register_sprite_from_source(&path);
                     let _ = reply.send(result);
                 }
                 RendererCommand::RenderDrawable(id) => {
@@ -151,12 +223,23 @@ pub enum RendererCommand {
         std::sync::mpsc::Sender<Result<DrawableKey, DrawError>>,
     ),
     RemoveDrawable(DrawableKey),
-    RegisterSpriteDrawable(ScreenKey, usize, Point<u16>, SpriteId),
-    RegisterSpriteFromSource(
-        String,
-        Option<usize>,
-        std::sync::mpsc::Sender<Result<SpriteId, AppError>>,
+    RegisterSpriteDrawable(
+        ScreenKey,
+        usize,
+        Point<u16>,
+        SpriteId,
+        FrameIdent,
+        std::sync::mpsc::Sender<Result<DrawableKey, AppError>>,
     ),
+    RegisterVideoDrawable(
+        ScreenKey,
+        usize,
+        Point<u16>,
+        SpriteId,
+        AnimationInfo,
+        std::sync::mpsc::Sender<Result<DrawableKey, AppError>>,
+    ),
+    RegisterSpriteFromSource(String, std::sync::mpsc::Sender<Result<SpriteId, AppError>>),
     RenderDrawable(DrawableKey),
     ReplaceDrawable(DrawableKey, DrawObject),
     ReplaceDrawablePoints(DrawableKey, Vec<Point<u16>>),

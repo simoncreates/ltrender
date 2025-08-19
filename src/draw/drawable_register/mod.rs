@@ -1,4 +1,7 @@
-use crate::draw::{DrawableId, ScreenKey, terminal_buffer::Drawable};
+use crate::draw::{
+    DrawableId, ScreenKey,
+    terminal_buffer::{Drawable, screen_buffer::Shader},
+};
 use std::collections::HashMap;
 
 pub type DrawableKey = (ScreenKey, DrawableId);
@@ -6,6 +9,7 @@ pub type DrawableKey = (ScreenKey, DrawableId);
 #[derive(Debug, Clone)]
 pub struct DrawObject {
     pub layer: usize,
+    pub shaders: Vec<Box<dyn Shader>>,
     pub drawable: Box<dyn Drawable + 'static>,
 }
 

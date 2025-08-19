@@ -35,6 +35,17 @@ impl DoublePointed for LineDrawable {
 }
 
 impl Drawable for LineDrawable {
+    fn size(&self, _sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError> {
+        let min_x = self.start.x.min(self.end.x);
+        let max_x = self.start.x.max(self.end.x);
+        let min_y = self.start.y.min(self.end.y);
+        let max_y = self.start.y.max(self.end.y);
+
+        let width = max_x - min_x + 1;
+        let height = max_y - min_y + 1;
+
+        Ok((width, height))
+    }
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }

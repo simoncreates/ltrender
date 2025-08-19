@@ -54,6 +54,9 @@ impl DoublePointed for CircleDrawable {
 }
 
 impl Drawable for CircleDrawable {
+    fn size(&self, _sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError> {
+        Ok((self.radius * 2, self.radius * 2))
+    }
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }

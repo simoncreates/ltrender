@@ -48,6 +48,10 @@ impl DoublePointed for RectDrawable {
 }
 
 impl Drawable for RectDrawable {
+    fn size(&self, _sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError> {
+        let size = self.rect.p2 - self.rect.p1;
+        Ok((size.x as u16, size.y as u16))
+    }
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }

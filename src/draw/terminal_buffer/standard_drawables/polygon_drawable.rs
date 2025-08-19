@@ -209,6 +209,32 @@ impl MultiPointed for PolygonDrawable {
 }
 
 impl Drawable for PolygonDrawable {
+    fn size(
+        &self,
+        _sprites: &crate::draw::SpriteRegistry,
+    ) -> Result<(u16, u16), crate::draw::DrawError> {
+        let mut low_x = u16::MAX;
+        let mut low_y = u16::MAX;
+        let mut high_x = u16::MIN;
+        let mut high_y = u16::MIN;
+        for p in &self.points {
+            if p.x < low_x {
+                low_x = p.x
+            }
+            if p.y < low_y {
+                low_y = p.y
+            }
+            if p.x > high_x {
+                high_x = p.x
+            }
+            if p.y > high_y {
+                high_y = p.y
+            }
+        }
+        let size = (high_x - low_x, high_y - low_y);
+
+        Ok(size)
+    }
     fn as_multi_pointed_mut(&mut self) -> Option<&mut dyn MultiPointed> {
         Some(self)
     }

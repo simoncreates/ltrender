@@ -11,9 +11,13 @@ use std::time::{Duration, Instant};
 
 use crate::draw::error::AppError;
 use crate::draw::renderer::RendererHandle;
+use crate::draw::terminal_buffer::screen_buffer::shaders::{FlipHorizontal, FlipVertical};
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::terminal_buffer::standard_drawables::PolygonDrawable;
-use crate::draw::{DrawObject, DrawableKey};
+use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
+    AnimationInfo, FrameIdent,
+};
+use crate::draw::{DrawObject, DrawableKey, SpriteDrawable};
 
 pub mod draw;
 struct PolyAnim {
@@ -28,14 +32,20 @@ struct PolyAnim {
 fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point<u16>> {
     let mut rng = rand::thread_rng();
     let mut pts = Vec::with_capacity(sides);
+
     for i in 0..sides {
         let theta = 2.0 * std::f64::consts::PI * (i as f64) / (sides as f64);
-        let x = cx + r * theta.cos();
-        let y = cy + r * theta.sin();
-        pts.push(Point {
-            x: x.round() as u16 + rng.gen_range(-10..=10) as u16,
-            y: y.round() as u16 + rng.gen_range(-10..=10) as u16,
-        });
+
+        let mut x = (cx + r * theta.cos()) as i32;
+        let mut y = (cy + r * theta.sin()) as i32;
+
+        x += rng.gen_range(-10..=10);
+        y += rng.gen_range(-10..=10);
+
+        let x = x.clamp(0, u16::MAX as i32) as u16;
+        let y = y.clamp(0, u16::MAX as i32) as u16;
+
+        pts.push(Point { x, y });
     }
     pts
 }
@@ -47,11 +57,38 @@ fn main() -> Result<(), AppError> {
 
     let term_size = size()?;
 
-    let r = RendererHandle::new::<DefaultScreenBuffer>(term_size, 500);
+    let mut r = RendererHandle::new::<DefaultScreenBuffer>(term_size, 500);
     r.set_update_interval(20);
 
     // create screen
     let screen_id = r.create_screen(Rect::from_coords(0, 0, term_size.0, term_size.1), 7);
+
+    let sprite_id =
+        r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())?;
+
+    let video_id = r.register_video_drawable(
+        screen_id,
+        50000,
+        Point::new(3, 3),
+        sprite_id,
+        AnimationInfo::default(),
+        FrameIdent::FirstFrame,
+    )?;
+
+    let obj = DrawObject {
+        layer: 5000,
+        shaders: vec![Box::new(FlipHorizontal), Box::new(FlipVertical)],
+        drawable: Box::new(SpriteDrawable {
+            position: Point { x: 0, y: 0 },
+            sprite_id,
+            last_state_change: std::time::Instant::now(),
+            animation_type: AnimationInfo::Image {
+                frame: FrameIdent::FirstFrame,
+            },
+        }),
+    };
+
+    let sprite_obj_id = r.register_drawable(screen_id, obj)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
     for i in 0..30 {
@@ -75,6 +112,7 @@ fn main() -> Result<(), AppError> {
 
         let obj = DrawObject {
             layer: i + 5,
+            shaders: Vec::new(),
             drawable: Box::new(PolygonDrawable {
                 points: vec![],
                 fill_style: Some(fill_style),
@@ -117,6 +155,9 @@ fn main() -> Result<(), AppError> {
                             frame_time.iter().sum::<Duration>().as_millis() as f64
                                 / frame_time.len() as f64
                         );
+                    }
+                    if k.code == KeyCode::Char('d') {
+                        r.move_drawable_by(sprite_obj_id, 1, 0);
                     }
                 }
                 Event::Resize(new_cols, new_rows) => {
@@ -164,6 +205,8 @@ fn main() -> Result<(), AppError> {
             frames_since_last = 0;
         }
 
+        r.render_drawable(sprite_obj_id);
+        r.render_drawable(video_id);
         r.render_frame();
         // r.clear_terminal();
     }

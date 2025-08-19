@@ -45,6 +45,9 @@ pub enum DrawError {
     #[error("Sprite {0} not found")]
     SpriteNotFound(SpriteId),
 
+    #[error("frame {1} of Sprite {0} not found")]
+    SpriteFrameNotFound(SpriteId, u16),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
