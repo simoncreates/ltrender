@@ -6,10 +6,12 @@ use crate::draw::{
     terminal_buffer::{Drawable, LineDrawable},
 };
 
+use crate::{handle_char_field, handle_pointed_field};
+
 #[derive(Default)]
 pub struct LineDrawableBuilder {
-    start: Option<Point<u16>>,
-    end: Option<Point<u16>>,
+    start: Option<Point<i32>>,
+    end: Option<Point<i32>>,
     chr: Option<TerminalChar>,
 }
 
@@ -18,20 +20,10 @@ impl LineDrawableBuilder {
         Self::default()
     }
 
-    pub fn start(mut self, start: Point<u16>) -> Self {
-        self.start = Some(start);
-        self
-    }
+    handle_pointed_field!(start, start);
+    handle_pointed_field!(end, end);
 
-    pub fn end(mut self, end: Point<u16>) -> Self {
-        self.end = Some(end);
-        self
-    }
-
-    pub fn chr(mut self, chr: TerminalChar) -> Self {
-        self.chr = Some(chr);
-        self
-    }
+    handle_char_field!(chr, chr);
 
     pub fn build(self) -> Result<Box<dyn Drawable>, DrawObjectBuilderError> {
         Ok(Box::new(LineDrawable {

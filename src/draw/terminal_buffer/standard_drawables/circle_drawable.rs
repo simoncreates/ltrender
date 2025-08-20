@@ -13,43 +13,43 @@ use common_stdx::Point;
 
 #[derive(Clone, Debug)]
 pub struct CircleDrawable {
-    pub center: Point<u16>,
+    pub center: Point<i32>,
     pub radius: u16,
     pub border_style: TerminalChar,
     pub fill_style: Option<TerminalChar>,
 }
 
 impl DoublePointed for CircleDrawable {
-    fn start(&self) -> Point<u16> {
+    fn start(&self) -> Point<i32> {
         Point {
-            x: self.center.x.saturating_sub(self.radius),
-            y: self.center.y.saturating_sub(self.radius),
+            x: self.center.x.saturating_sub(self.radius as i32),
+            y: self.center.y.saturating_sub(self.radius as i32),
         }
     }
 
-    fn end(&self) -> Point<u16> {
+    fn end(&self) -> Point<i32> {
         Point {
-            x: self.center.x.saturating_add(self.radius),
-            y: self.center.y.saturating_add(self.radius),
+            x: self.center.x.saturating_add(self.radius as i32),
+            y: self.center.y.saturating_add(self.radius as i32),
         }
     }
 
-    fn set_start(&mut self, p: Point<u16>) {
+    fn set_start(&mut self, p: Point<i32>) {
         let end = self.end();
         self.center = Point {
             x: (p.x + end.x) / 2,
             y: (p.y + end.y) / 2,
         };
-        self.radius = ((end.x.saturating_sub(p.x)).max(end.y.saturating_sub(p.y))) / 2;
+        self.radius = ((end.x.saturating_sub(p.x)).max(end.y.saturating_sub(p.y))) as u16 / 2;
     }
 
-    fn set_end(&mut self, p: Point<u16>) {
+    fn set_end(&mut self, p: Point<i32>) {
         let start = self.start();
         self.center = Point {
             x: (p.x + start.x) / 2,
             y: (p.y + start.y) / 2,
         };
-        self.radius = ((p.x.saturating_sub(start.x)).max(p.y.saturating_sub(start.y))) / 2;
+        self.radius = ((p.x.saturating_sub(start.x)).max(p.y.saturating_sub(start.y))) as u16 / 2;
     }
 }
 
@@ -70,8 +70,8 @@ impl Drawable for CircleDrawable {
         for dy in -(self.radius as i32)..=(self.radius as i32) {
             for dx in -(self.radius as i32)..=(self.radius as i32) {
                 let dist2 = dx * dx + dy * dy;
-                let x = self.center.x as i32 + dx;
-                let y = self.center.y as i32 + dy;
+                let x = self.center.x + dx;
+                let y = self.center.y + dy;
 
                 if dist2 <= r2 {
                     let chr = if dist2 >= r_inner2 {
@@ -84,10 +84,7 @@ impl Drawable for CircleDrawable {
                     };
 
                     out.push(BasicDraw {
-                        pos: Point {
-                            x: x as u16,
-                            y: y as u16,
-                        },
+                        pos: Point { x, y },
                         chr,
                     });
                 }
@@ -97,8 +94,8 @@ impl Drawable for CircleDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
-        let mut intervals = HashMap::new();
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
+        let mut intervals: HashMap<i32, Vec<UpdateInterval>> = HashMap::new();
         let r = self.radius as usize;
         let center = Point {
             x: self.center.x as usize,
@@ -106,13 +103,13 @@ impl Drawable for CircleDrawable {
         };
 
         fn push_interval(
-            map: &mut HashMap<u16, Vec<UpdateInterval>>,
+            map: &mut HashMap<i32, Vec<UpdateInterval>>,
             y: usize,
             start: usize,
             end_exclusive: usize,
         ) {
             if start < end_exclusive {
-                map.entry(y as u16).or_default().push(UpdateInterval {
+                map.entry(y as i32).or_default().push(UpdateInterval {
                     interval: (start, end_exclusive),
                     iv_type: UpdateIntervalType::Optimized,
                 });
@@ -133,7 +130,7 @@ impl Drawable for CircleDrawable {
         intervals
     }
 
-    fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable> {
+    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
         Box::new(CircleDrawable {
             center: Point {
                 x: self.center.x + offset.x,

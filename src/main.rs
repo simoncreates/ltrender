@@ -1,4 +1,4 @@
-use ascii_assets::{Color, TerminalChar, TerminalString};
+use ascii_assets::{Color, TerminalChar};
 use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, poll, read};
 use crossterm::terminal::size;
@@ -7,24 +7,24 @@ use log::info;
 use rand::Rng as _;
 use std::fs::File;
 use std::io::Write;
-use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::draw::draw_object_builder::SpriteDrawableBuilder;
 use crate::draw::error::AppError;
 use crate::draw::renderer::RendererHandle;
 use crate::draw::terminal_buffer::screen_buffer::shaders::{
-    FlipDiagonal, FlipHorizontal, FlipVertical, Grayscale,
+    FlipDiagonal, FlipHorizontal, Grayscale,
 };
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::terminal_buffer::standard_drawables::PolygonDrawable;
 use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
-use crate::draw::{DrawObject, DrawObjectBuilder, DrawableKey};
+use crate::draw::{DrawObject, DrawObjectBuilder, DrawObjectKey};
 
 pub mod draw;
 struct PolyAnim {
-    id: DrawableKey,
+    id: DrawObjectKey,
     center: Point<f64>,
     radius: f64,
     sides: usize,
@@ -32,7 +32,7 @@ struct PolyAnim {
     speed: f64,
 }
 
-fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point<u16>> {
+fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point<i32>> {
     let mut rng = rand::thread_rng();
     let mut pts = Vec::with_capacity(sides);
 
@@ -45,8 +45,8 @@ fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point
         x += rng.gen_range(-10..=10);
         y += rng.gen_range(-10..=10);
 
-        let x = x.clamp(0, u16::MAX as i32) as u16;
-        let y = y.clamp(0, u16::MAX as i32) as u16;
+        let x = x.clamp(0, i32::MAX);
+        let y = y.clamp(0, i32::MAX);
 
         pts.push(Point { x, y });
     }
@@ -64,7 +64,10 @@ fn main() -> Result<(), AppError> {
     r.set_update_interval(20);
 
     // create screen
-    let screen_id = r.create_screen(Rect::from_coords(0, 0, term_size.0, term_size.1), 7);
+    let screen_id = r.create_screen(
+        Rect::from_coords(0, 0, term_size.0 as i32, term_size.1 as i32),
+        7,
+    );
 
     let sprite_id =
         r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())?;
@@ -72,28 +75,25 @@ fn main() -> Result<(), AppError> {
     let circle_id = DrawObjectBuilder::default()
         .layer(50)
         .screen(screen_id)
-        .circle_drawable(|c| {
-            c.radius(4)
-                .center(Point::new(20, 20))
-                .radius(13)
-                .border_style(TerminalChar::with_bg('G', Color::rgb(0, 200, 250)))
-        })?
+        .circle_drawable(|c| c.radius(4).center((20, 20)).radius(13).border_style('G'))?
         .shader(FlipDiagonal)
         .build(&mut r)?;
+
+    let video_drawable = SpriteDrawableBuilder::default()
+        .sprite_id(sprite_id)
+        .position((0, 0))
+        .animation_type(AnimationInfo::Video {
+            loop_type: VideoLoopType::Loop,
+            speed: VideoSpeed::Fps(3),
+            start_frame: FrameIdent::FirstFrame,
+            end_frame: FrameIdent::LastFrame,
+        })
+        .build()?;
 
     let sprite_video_id = DrawObjectBuilder::default()
         .layer(10)
         .screen(screen_id)
-        .sprite_drawable(|d| {
-            d.sprite_id(sprite_id)
-                .position(Point::new(0, 0))
-                .animation_type(AnimationInfo::Video {
-                    loop_type: VideoLoopType::Loop,
-                    speed: VideoSpeed::Fps(3),
-                    start_frame: FrameIdent::FirstFrame,
-                    end_frame: FrameIdent::LastFrame,
-                })
-        })?
+        .drawable(video_drawable)
         .shader(FlipHorizontal)
         .shader(Grayscale)
         .build(&mut r)?;
@@ -190,8 +190,8 @@ fn main() -> Result<(), AppError> {
                 let y = anim.center.y + anim.radius * theta.sin();
 
                 new_pts.push(Point {
-                    x: x as u16,
-                    y: y as u16,
+                    x: x as i32,
+                    y: y as i32,
                 });
             }
             r.replace_drawable_points(anim.id, new_pts);

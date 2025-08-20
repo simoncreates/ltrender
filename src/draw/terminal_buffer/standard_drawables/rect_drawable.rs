@@ -13,37 +13,31 @@ use common_stdx::{Point, Rect};
 
 #[derive(Clone, Debug)]
 pub struct RectDrawable {
-    pub rect: Rect<usize>,
+    pub rect: Rect<i32>,
     pub border_thickness: usize,
     pub border_style: TerminalChar,
     pub fill_style: Option<TerminalChar>,
 }
 
 impl DoublePointed for RectDrawable {
-    fn start(&self) -> Point<u16> {
+    fn start(&self) -> Point<i32> {
         Point {
-            x: self.rect.p1.x as u16,
-            y: self.rect.p1.y as u16,
+            x: self.rect.p1.x,
+            y: self.rect.p1.y,
         }
     }
-    fn end(&self) -> Point<u16> {
+    fn end(&self) -> Point<i32> {
         Point {
-            x: self.rect.p2.x as u16,
-            y: self.rect.p2.y as u16,
+            x: self.rect.p2.x,
+            y: self.rect.p2.y,
         }
     }
 
-    fn set_start(&mut self, p: Point<u16>) {
-        self.rect.p1 = Point {
-            x: p.x as usize,
-            y: p.y as usize,
-        };
+    fn set_start(&mut self, p: Point<i32>) {
+        self.rect.p1 = p;
     }
-    fn set_end(&mut self, p: Point<u16>) {
-        self.rect.p2 = Point {
-            x: p.x as usize,
-            y: p.y as usize,
-        };
+    fn set_end(&mut self, p: Point<i32>) {
+        self.rect.p2 = p;
     }
 }
 
@@ -65,7 +59,7 @@ impl Drawable for RectDrawable {
         } else {
             2 * (self.rect.p2.x - self.rect.p1.x + 1 + self.rect.p2.y - self.rect.p1.y + 1)
         };
-        let mut out = Vec::with_capacity(expected);
+        let mut out = Vec::with_capacity(expected as usize);
 
         for y in self.rect.p1.y..=self.rect.p2.y {
             for x in self.rect.p1.x..=self.rect.p2.x {
@@ -76,7 +70,7 @@ impl Drawable for RectDrawable {
 
                 let min_dist = *[left, right, top, bottom].iter().min().unwrap();
 
-                let chr = if min_dist < self.border_thickness {
+                let chr = if min_dist < self.border_thickness as i32 {
                     self.border_style
                 } else {
                     match self.fill_style {
@@ -86,10 +80,7 @@ impl Drawable for RectDrawable {
                 };
 
                 out.push(BasicDraw {
-                    pos: Point {
-                        x: x as u16,
-                        y: y as u16,
-                    },
+                    pos: Point { x, y },
                     chr,
                 });
             }
@@ -98,7 +89,7 @@ impl Drawable for RectDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
         if self.border_thickness == 0 {
             return HashMap::new();
         }
@@ -107,12 +98,12 @@ impl Drawable for RectDrawable {
             let rect = self.rect;
             return convert_rect_to_update_intervals(Rect {
                 p1: Point {
-                    x: rect.p1.x as u16,
-                    y: rect.p1.y as u16,
+                    x: rect.p1.x,
+                    y: rect.p1.y,
                 },
                 p2: Point {
-                    x: rect.p2.x.saturating_add(1) as u16,
-                    y: rect.p2.y.saturating_add(1) as u16,
+                    x: rect.p2.x.saturating_add(1),
+                    y: rect.p2.y.saturating_add(1),
                 },
             });
         }
@@ -120,13 +111,13 @@ impl Drawable for RectDrawable {
         let mut intervals = HashMap::new();
 
         fn push_interval(
-            map: &mut HashMap<u16, Vec<UpdateInterval>>,
-            y: usize,
+            map: &mut HashMap<i32, Vec<UpdateInterval>>,
+            y: i32,
             start: usize,
             end_exclusive: usize,
         ) {
             if start < end_exclusive {
-                map.entry(y as u16).or_default().push(UpdateInterval {
+                map.entry(y).or_default().push(UpdateInterval {
                     interval: (start, end_exclusive),
                     iv_type: UpdateIntervalType::Optimized,
                 });
@@ -136,20 +127,26 @@ impl Drawable for RectDrawable {
         let t = self.border_thickness;
         let rect = self.rect;
         for y in rect.p1.y..=rect.p2.y {
-            let is_top = y < rect.p1.y + t;
-            let is_bottom = y > rect.p2.y - t;
+            let is_top = y < rect.p1.y + t as i32;
+            let is_bottom = y > rect.p2.y - t as i32;
 
             if is_top || is_bottom {
-                push_interval(&mut intervals, y, rect.p1.x, rect.p2.x.saturating_add(1));
+                push_interval(
+                    &mut intervals,
+                    y,
+                    rect.p1.x as usize,
+                    rect.p2.x.saturating_add(1) as usize,
+                );
                 continue;
             }
 
-            let left_start = rect.p1.x;
-            let left_end = (rect.p1.x + t).min(rect.p2.x.saturating_add(1));
+            let left_start = rect.p1.x as usize;
+            let left_end = (rect.p1.x + t as i32).min(rect.p2.x.saturating_add(1)) as usize;
 
-            let right_start_opt = rect.p2.x.checked_sub(t - 1);
+            let right_start_opt = rect.p2.x.checked_sub(t as i32 - 1);
             if let Some(right_start) = right_start_opt {
-                let right_end = rect.p2.x.saturating_add(1);
+                let right_start = right_start as usize;
+                let right_end = rect.p2.x.saturating_add(1) as usize;
                 if left_start < right_start {
                     push_interval(&mut intervals, y, left_start, left_end);
                     push_interval(&mut intervals, y, right_start, right_end);
@@ -164,16 +161,16 @@ impl Drawable for RectDrawable {
         intervals
     }
 
-    fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable> {
+    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
         Box::new(RectDrawable {
             rect: Rect {
                 p1: Point {
-                    x: self.rect.p1.x + offset.x as usize,
-                    y: self.rect.p1.y + offset.y as usize,
+                    x: self.rect.p1.x + offset.x,
+                    y: self.rect.p1.y + offset.y,
                 },
                 p2: Point {
-                    x: self.rect.p2.x + offset.x as usize,
-                    y: self.rect.p2.y + offset.y as usize,
+                    x: self.rect.p2.x + offset.x,
+                    y: self.rect.p2.y + offset.y,
                 },
             },
             border_thickness: self.border_thickness,

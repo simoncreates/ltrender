@@ -2,7 +2,6 @@
 macro_rules! spawn_cell_drawer {
     ($name:ident, $out:expr, $buffersize:expr) => {{
         use std::sync::mpsc;
-        use std::sync::mpsc::{Receiver, Sender};
         use std::thread;
 
         // create the channel

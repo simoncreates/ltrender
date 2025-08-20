@@ -56,17 +56,17 @@ impl Default for AnimationInfo {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct SpriteDrawable {
-    pub position: Point<u16>,
+    pub position: Point<i32>,
     pub sprite_id: SpriteId,
     pub last_state_change: std::time::Instant,
     pub animation_type: AnimationInfo,
 }
 
 impl SinglePointed for SpriteDrawable {
-    fn position(&self) -> Point<u16> {
+    fn position(&self) -> Point<i32> {
         self.position
     }
-    fn set_position(&mut self, p: Point<u16>) {
+    fn set_position(&mut self, p: Point<i32>) {
         self.position = p;
     }
 }
@@ -99,8 +99,8 @@ impl SpriteDrawable {
         let origin_y = self.position.y;
 
         for (i, ch) in frame_data.iter().enumerate() {
-            let dx = (i % size.0) as u16;
-            let dy = (i / size.0) as u16;
+            let dx = (i % size.0) as i32;
+            let dy = (i / size.0) as i32;
 
             let abs_x = origin_x.saturating_add(dx);
             let abs_y = origin_y.saturating_add(dy);
@@ -197,7 +197,7 @@ impl Drawable for SpriteDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
         let size = sprites
             .get(&self.sprite_id)
             .map(|s| s.size())
@@ -205,13 +205,13 @@ impl Drawable for SpriteDrawable {
         convert_rect_to_update_intervals(Rect {
             p1: self.position,
             p2: Point {
-                x: self.position.x + size.1 as u16,
-                y: self.position.y + size.2 as u16,
+                x: self.position.x + size.1 as i32,
+                y: self.position.y + size.2 as i32,
             },
         })
     }
 
-    fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable> {
+    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
         Box::new(SpriteDrawable {
             position: self.position + offset,
             sprite_id: self.sprite_id,

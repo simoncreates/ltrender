@@ -18,17 +18,17 @@ pub struct FlipVertical;
 
 impl Shader for FlipHorizontal {
     fn apply(&self, draw: &mut BasicDraw, frame_size: (usize, usize)) {
-        let rel_x = draw.pos.x % frame_size.0 as u16;
-        let new_x = (frame_size.0 as u16 - 1) - rel_x;
-        draw.pos.x = new_x;
+        let rel_x = draw.pos.x % frame_size.0 as i32;
+        let new_x = (frame_size.0 - 1) - rel_x as usize;
+        draw.pos.x = new_x as i32;
     }
 }
 
 impl Shader for FlipVertical {
     fn apply(&self, draw: &mut BasicDraw, frame_size: (usize, usize)) {
-        let rel_y = draw.pos.y % frame_size.1 as u16;
-        let new_y = (frame_size.1 as u16 - 1) - rel_y;
-        draw.pos.y = new_y;
+        let rel_y = draw.pos.y % frame_size.1 as i32;
+        let new_y = (frame_size.1 - 1) - rel_y as usize;
+        draw.pos.y = new_y as i32;
     }
 }
 
@@ -39,7 +39,7 @@ impl Shader for FlipDiagonal {
     fn apply(&self, draw: &mut BasicDraw, frame_size: (usize, usize)) {
         let new_x = draw.pos.y;
         let new_y = draw.pos.x;
-        if new_x < frame_size.0 as u16 && new_y < frame_size.1 as u16 {
+        if new_x < frame_size.0 as i32 && new_y < frame_size.1 as i32 {
             draw.pos.x = new_x;
             draw.pos.y = new_y;
         }

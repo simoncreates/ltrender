@@ -9,9 +9,11 @@ use crate::draw::{
     },
 };
 
+use crate::handle_pointed_field;
+
 #[derive(Default)]
 pub struct SpriteDrawableBuilder {
-    position: Option<Point<u16>>,
+    position: Option<Point<i32>>,
     sprite_id: Option<SpriteId>,
     animation_type: Option<AnimationInfo>,
 }
@@ -21,10 +23,7 @@ impl SpriteDrawableBuilder {
         Self::default()
     }
 
-    pub fn position(mut self, pos: Point<u16>) -> Self {
-        self.position = Some(pos);
-        self
-    }
+    handle_pointed_field!(position, position);
 
     pub fn sprite_id(mut self, id: SpriteId) -> Self {
         self.sprite_id = Some(id);

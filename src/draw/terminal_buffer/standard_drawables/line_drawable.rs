@@ -13,23 +13,23 @@ use crate::draw::{
 
 #[derive(Clone, Debug)]
 pub struct LineDrawable {
-    pub start: Point<u16>,
-    pub end: Point<u16>,
+    pub start: Point<i32>,
+    pub end: Point<i32>,
     pub chr: TerminalChar,
 }
 
 impl DoublePointed for LineDrawable {
-    fn start(&self) -> Point<u16> {
+    fn start(&self) -> Point<i32> {
         self.start
     }
-    fn end(&self) -> Point<u16> {
+    fn end(&self) -> Point<i32> {
         self.end
     }
 
-    fn set_start(&mut self, p: Point<u16>) {
+    fn set_start(&mut self, p: Point<i32>) {
         self.start = p;
     }
-    fn set_end(&mut self, p: Point<u16>) {
+    fn set_end(&mut self, p: Point<i32>) {
         self.end = p;
     }
 }
@@ -44,16 +44,16 @@ impl Drawable for LineDrawable {
         let width = max_x - min_x + 1;
         let height = max_y - min_y + 1;
 
-        Ok((width, height))
+        Ok((width as u16, height as u16))
     }
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }
     fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
-        let mut x0 = self.start.x as i32;
-        let mut y0 = self.start.y as i32;
-        let x1 = self.end.x as i32;
-        let y1 = self.end.y as i32;
+        let mut x0 = self.start.x;
+        let mut y0 = self.start.y;
+        let x1 = self.end.x;
+        let y1 = self.end.y;
 
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -67,10 +67,7 @@ impl Drawable for LineDrawable {
 
         loop {
             out.push(BasicDraw {
-                pos: Point {
-                    x: x0 as u16,
-                    y: y0 as u16,
-                },
+                pos: Point { x: x0, y: y0 },
                 chr: self.chr,
             });
 
@@ -92,7 +89,7 @@ impl Drawable for LineDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
         let min_x = self.start.x.min(self.end.x);
         let max_x = self.start.x.max(self.end.x);
         let min_y = self.start.y.min(self.end.y);
@@ -107,7 +104,7 @@ impl Drawable for LineDrawable {
         })
     }
 
-    fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable> {
+    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
         Box::new(LineDrawable {
             start: self.start + offset,
             end: self.end + offset,

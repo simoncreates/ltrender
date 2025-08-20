@@ -2,21 +2,16 @@ use crossterm::{
     cursor::{Hide, MoveTo, Show},
     execute,
     terminal::{
-        disable_raw_mode, enable_raw_mode, Clear, ClearType,
-        EnterAlternateScreen, LeaveAlternateScreen,
+        Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+        enable_raw_mode,
     },
 };
-use std::io::{stdout, Result};
+use std::io::{Result, stdout};
 
 pub fn init_terminal() -> Result<()> {
     let mut stdout = stdout();
     enable_raw_mode()?;
-    execute!(
-        stdout,
-        EnterAlternateScreen,
-        Clear(ClearType::All),
-        Hide
-    )?;
+    execute!(stdout, EnterAlternateScreen, Clear(ClearType::All), Hide)?;
     Ok(())
 }
 

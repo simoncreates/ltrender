@@ -1,5 +1,5 @@
 use crate::draw::{
-    DrawError, DrawObject, DrawableId, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
+    DrawError, DrawObject, ObjectId, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
     terminal_buffer::{CharacterInfo, CharacterInfoList},
 };
 use common_stdx::Rect;
@@ -37,7 +37,7 @@ pub trait ScreenBufferCore: Sized + Debug {
 
     // helpers
     /// Merge a map of  intervals into the existing interval set.
-    fn merge_redraw_regions(&mut self, map: HashMap<u16, Vec<UpdateInterval>>) {
+    fn merge_redraw_regions(&mut self, map: HashMap<i32, Vec<UpdateInterval>>) {
         self.intervals_mut().merge_redraw_regions(map);
     }
 
@@ -77,9 +77,9 @@ pub trait ScreenBuffer: ScreenBufferCore {
     fn add_to_buffer(
         &mut self,
         obj: &mut DrawObject,
-        obj_id: DrawableId,
+        obj_id: ObjectId,
         screen_layer: usize,
-        bounds: &Rect<u16>,
+        bounds: &Rect<i32>,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError> {
         let drawable = &mut obj.drawable;
@@ -97,7 +97,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
             }
 
             let (buf_cols, buf_rows) = self.size();
-            if rd.pos.x >= buf_cols || rd.pos.y >= buf_rows {
+            if rd.pos.x as u16 >= buf_cols || rd.pos.y as u16 >= buf_rows {
                 continue;
             }
 
@@ -115,12 +115,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
     }
 
     /// Remove an object from the buffer.
-    fn remove_from_buffer(
-        &mut self,
-        obj: &DrawObject,
-        obj_id: DrawableId,
-        sprites: &SpriteRegistry,
-    ) {
+    fn remove_from_buffer(&mut self, obj: &DrawObject, obj_id: ObjectId, sprites: &SpriteRegistry) {
         let drawable = &*obj.drawable;
         let map = drawable.bounding_iv(sprites);
         self.merge_redraw_regions(map.clone());
@@ -221,7 +216,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
     }
     fn drawer_sender(&self) -> std::sync::mpsc::SyncSender<CellDrawerCommand>;
 
-    fn idx_of(&self, pos: Point<u16>) -> usize {
+    fn idx_of(&self, pos: Point<i32>) -> usize {
         (pos.y as usize) * self.size().0 as usize + pos.x as usize
     }
 }

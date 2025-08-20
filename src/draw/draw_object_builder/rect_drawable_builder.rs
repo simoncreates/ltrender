@@ -6,9 +6,11 @@ use crate::draw::{
     terminal_buffer::{Drawable, standard_drawables::RectDrawable},
 };
 
+use crate::handle_char_field;
+
 #[derive(Default)]
 pub struct RectDrawableBuilder {
-    rect: Option<Rect<usize>>,
+    rect: Option<Rect<i32>>,
     border_thickness: Option<usize>,
     border_style: Option<TerminalChar>,
     fill_style: Option<TerminalChar>,
@@ -19,7 +21,7 @@ impl RectDrawableBuilder {
         Self::default()
     }
 
-    pub fn rect(mut self, rect: Rect<usize>) -> Self {
+    pub fn rect(mut self, rect: Rect<i32>) -> Self {
         self.rect = Some(rect);
         self
     }
@@ -29,15 +31,8 @@ impl RectDrawableBuilder {
         self
     }
 
-    pub fn border_style(mut self, chr: TerminalChar) -> Self {
-        self.border_style = Some(chr);
-        self
-    }
-
-    pub fn fill_style(mut self, chr: TerminalChar) -> Self {
-        self.fill_style = Some(chr);
-        self
-    }
+    handle_char_field!(border_style, border_style);
+    handle_char_field!(fill_style, fill_style);
 
     pub fn build(self) -> Result<Box<dyn Drawable>, DrawObjectBuilderError> {
         Ok(Box::new(RectDrawable {

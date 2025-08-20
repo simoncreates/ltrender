@@ -7,7 +7,7 @@ use crate::draw::ScreenBuffer;
 use crate::draw::terminal_buffer::drawable::Drawable;
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::{
-    DrawError, DrawObject, DrawObjectLibrary, DrawableKey, Screen, ScreenKey, SpriteEntry,
+    DrawError, DrawObject, DrawObjectKey, DrawObjectLibrary, Screen, ScreenKey, SpriteEntry,
     SpriteRegistry, error::AppError,
 }; // bring the trait into scope
 
@@ -15,7 +15,7 @@ pub mod render_handle;
 pub use render_handle::RendererHandle;
 
 pub type SpriteId = usize;
-pub type DrawableId = usize;
+pub type ObjectId = usize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RenderMode {
     Instant,
@@ -59,7 +59,7 @@ where
     }
 
     /// Create a new screen and return its key.
-    pub fn create_screen(&mut self, rect: Rect<u16>, layer: usize) -> ScreenKey {
+    pub fn create_screen(&mut self, rect: Rect<i32>, layer: usize) -> ScreenKey {
         let new_id = self.generate_screen_key();
         self.screens
             .insert(new_id, Screen::new(rect, layer, new_id));
@@ -71,20 +71,23 @@ where
         &mut self,
         screen_id: ScreenKey,
         obj: DrawObject,
-    ) -> Result<DrawableKey, DrawError> {
+    ) -> Result<DrawObjectKey, DrawError> {
         if let Some(s) = self.screens.get_mut(&screen_id) {
             let new_obj_id = self.obj_library.add_obj(screen_id, obj);
             s.register_drawable(new_obj_id);
-            Ok((screen_id, new_obj_id))
+            Ok(DrawObjectKey {
+                screen_id,
+                object_id: new_obj_id,
+            })
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
         }
     }
 
-    pub fn remove_drawable(&mut self, id: DrawableKey) -> Result<(), DrawError> {
-        if let Some(s) = self.screens.get_mut(&id.0) {
+    pub fn remove_drawable(&mut self, id: DrawObjectKey) -> Result<(), DrawError> {
+        if let Some(s) = self.screens.get_mut(&id.screen_id) {
             s.remove_drawable(
-                id.1,
+                id.object_id,
                 &mut self.screen_buffer,
                 &self.obj_library,
                 &self.sprites,
@@ -92,7 +95,7 @@ where
             self.refresh(false)?;
             Ok(())
         } else {
-            Err(DrawError::DisplayKeyNotFound(id.0))
+            Err(DrawError::DisplayKeyNotFound(id.screen_id))
         }
     }
 
@@ -106,10 +109,10 @@ where
     }
 
     /// Render a single drawable object.
-    pub fn render_drawable(&mut self, id: DrawableKey) -> Result<(), DrawError> {
-        if let Some(s) = self.screens.get_mut(&id.0) {
+    pub fn render_drawable(&mut self, id: DrawObjectKey) -> Result<(), DrawError> {
+        if let Some(s) = self.screens.get_mut(&id.screen_id) {
             s.render_drawable(
-                id.1,
+                id.object_id,
                 &mut self.screen_buffer,
                 &self.obj_library,
                 &self.sprites,
@@ -117,7 +120,7 @@ where
             self.refresh(false)?;
             Ok(())
         } else {
-            Err(DrawError::DisplayKeyNotFound(id.0))
+            Err(DrawError::DisplayKeyNotFound(id.screen_id))
         }
     }
 
@@ -125,26 +128,26 @@ where
     /// then replaces annd draws it to the terminalbuffer
     pub fn replace_drawable(
         &mut self,
-        id: DrawableKey,
+        id: DrawObjectKey,
         new_obj: DrawObject,
     ) -> Result<(), DrawError> {
-        if let Some(s) = self.screens.get_mut(&id.0) {
+        if let Some(s) = self.screens.get_mut(&id.screen_id) {
             s.remove_drawable(
-                id.1,
+                id.object_id,
                 &mut self.screen_buffer,
                 &self.obj_library,
                 &self.sprites,
             )?;
             self.obj_library.update_drawable(id, new_obj);
             s.render_drawable(
-                id.1,
+                id.object_id,
                 &mut self.screen_buffer,
                 &self.obj_library,
                 &self.sprites,
             )?;
             Ok(())
         } else {
-            Err(DrawError::DisplayKeyNotFound(id.0))
+            Err(DrawError::DisplayKeyNotFound(id.screen_id))
         }
     }
     /// Render all objects on all screens.
@@ -192,40 +195,44 @@ where
         }
     }
 
-    fn get_drawable<F, T>(&self, handle: DrawableKey, mut get_fn: F) -> Result<T, DrawError>
+    fn get_drawable<F, T>(&self, object_key: DrawObjectKey, mut get_fn: F) -> Result<T, DrawError>
     where
         F: FnMut(&dyn Drawable) -> Result<T, DrawError>,
     {
-        if let Some(obj) = self.obj_library.find_drawable(handle.0, handle.1) {
+        if let Some(obj) = self.obj_library.find_drawable(&object_key) {
             get_fn(&*obj.drawable)
         } else {
             Err(DrawError::DrawableHandleNotFound {
-                screen_id: handle.0,
-                obj_id: handle.1,
+                screen_id: object_key.screen_id,
+                obj_id: object_key.object_id,
             })
         }
     }
 
     /// general update function
-    fn update_drawable<F>(&mut self, handle: DrawableKey, mut update_fn: F) -> Result<(), DrawError>
+    fn update_drawable<F>(
+        &mut self,
+        object_key: DrawObjectKey,
+        mut update_fn: F,
+    ) -> Result<(), DrawError>
     where
         F: FnMut(&mut dyn Drawable),
     {
-        self.remove_drawable(handle)?;
+        self.remove_drawable(object_key)?;
 
         {
             let obj =
                 self.obj_library
-                    .get_mut(&handle)
+                    .get_mut(&object_key)
                     .ok_or(DrawError::DrawableHandleNotFound {
-                        screen_id: handle.0,
-                        obj_id: handle.1,
+                        screen_id: object_key.screen_id,
+                        obj_id: object_key.object_id,
                     })?;
             update_fn(&mut *obj.drawable);
         }
 
         if self.render_mode == RenderMode::Instant {
-            self.render_drawable(handle)?;
+            self.render_drawable(object_key)?;
         }
 
         Ok(())
@@ -233,19 +240,19 @@ where
 
     pub fn move_drawable_to(
         &mut self,
-        handle: DrawableKey,
-        new_pos: Point<u16>,
+        handle: DrawObjectKey,
+        new_pos: Point<i32>,
     ) -> Result<(), DrawError> {
         self.update_drawable(handle, |drawable| {
             if let Some(dp) = drawable.as_double_pointed_mut() {
                 let old_start = dp.start();
                 let old_end = dp.end();
-                let dx = new_pos.x as i32 - old_start.x as i32;
-                let dy = new_pos.y as i32 - old_start.y as i32;
+                let dx = new_pos.x - old_start.x;
+                let dy = new_pos.y - old_start.y;
                 dp.set_start(new_pos);
                 dp.set_end(Point {
-                    x: (old_end.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
-                    y: (old_end.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                    x: (old_end.x + dx).clamp(0, u16::MAX as i32),
+                    y: (old_end.y + dy).clamp(0, u16::MAX as i32),
                 });
             } else if let Some(sp) = drawable.as_single_pointed_mut() {
                 sp.set_position(new_pos);
@@ -255,7 +262,7 @@ where
 
     pub fn move_drawable_by(
         &mut self,
-        handle: DrawableKey,
+        handle: DrawObjectKey,
         dx: i32,
         dy: i32,
     ) -> Result<(), DrawError> {
@@ -264,18 +271,18 @@ where
                 let start = dp.start();
                 let end = dp.end();
                 dp.set_start(Point {
-                    x: (start.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
-                    y: (start.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                    x: (start.x + dx).clamp(0, i32::MAX),
+                    y: (start.y + dy).clamp(0, i32::MAX),
                 });
                 dp.set_end(Point {
-                    x: (end.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
-                    y: (end.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                    x: (end.x + dx).clamp(0, i32::MAX),
+                    y: (end.y + dy).clamp(0, i32::MAX),
                 });
             } else if let Some(sp) = drawable.as_single_pointed_mut() {
                 let pos = sp.position();
                 sp.set_position(Point {
-                    x: (pos.x as i32 + dx).clamp(0, u16::MAX as i32) as u16,
-                    y: (pos.y as i32 + dy).clamp(0, u16::MAX as i32) as u16,
+                    x: (pos.x + dx).clamp(0, i32::MAX),
+                    y: (pos.y + dy).clamp(0, i32::MAX),
                 });
             }
         })
@@ -283,15 +290,15 @@ where
 
     pub fn move_drawable_point(
         &mut self,
-        handle: DrawableKey,
+        handle: DrawObjectKey,
         point_index: usize,
-        new_pos: Point<u16>,
+        new_pos: Point<i32>,
     ) -> Result<(), DrawError> {
         self.update_drawable(handle, |drawable| {
             if let Some(dp) = drawable.as_double_pointed_mut() {
                 let clamped = Point {
-                    x: (new_pos.x as i32).clamp(0, u16::MAX as i32) as u16,
-                    y: (new_pos.y as i32).clamp(0, u16::MAX as i32) as u16,
+                    x: (new_pos.x).clamp(0, i32::MAX),
+                    y: (new_pos.y).clamp(0, i32::MAX),
                 };
                 match point_index {
                     0 => dp.set_start(clamped),
@@ -303,15 +310,15 @@ where
     }
     pub fn move_multipoint_drawable_point(
         &mut self,
-        handle: DrawableKey,
+        handle: DrawObjectKey,
         point_index: usize,
-        new_pos: Point<u16>,
+        new_pos: Point<i32>,
     ) -> Result<(), DrawError> {
         self.update_drawable(handle, |drawable| {
             if let Some(mp) = drawable.as_multi_pointed_mut() {
                 let clamped = Point {
-                    x: (new_pos.x as i32).clamp(0, u16::MAX as i32) as u16,
-                    y: (new_pos.y as i32).clamp(0, u16::MAX as i32) as u16,
+                    x: (new_pos.x).clamp(0, i32::MAX),
+                    y: (new_pos.y).clamp(0, i32::MAX),
                 };
                 mp.set_point(point_index, clamped);
             }
@@ -320,8 +327,8 @@ where
     /// replace a drawables points
     pub fn replace_drawable_points(
         &mut self,
-        handle: DrawableKey,
-        new_points: Vec<Point<u16>>,
+        handle: DrawObjectKey,
+        new_points: Vec<Point<i32>>,
     ) -> Result<(), DrawError> {
         self.update_drawable(handle, |drawable| {
             if let Some(mp) = drawable.as_multi_pointed_mut() {
@@ -351,7 +358,7 @@ where
         })
     }
 
-    pub fn get_amount_of_points(&self, handle: DrawableKey) -> Result<Option<usize>, DrawError> {
+    pub fn get_amount_of_points(&self, handle: DrawObjectKey) -> Result<Option<usize>, DrawError> {
         self.get_drawable(handle, |drawable| {
             if let Some(mp) = drawable.as_multi_pointed() {
                 Ok(Some(mp.points().len()))

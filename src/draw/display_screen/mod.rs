@@ -1,5 +1,5 @@
 use crate::draw::{
-    DrawError, DrawObject, DrawObjectLibrary, DrawableId, ScreenBuffer, SpriteRegistry,
+    DrawError, DrawObject, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
 };
 use common_stdx::Rect;
 pub type ScreenKey = usize;
@@ -8,12 +8,12 @@ pub type ScreenKey = usize;
 pub struct Screen {
     layer: usize,
     id: ScreenKey,
-    area: Rect<u16>,
-    draw_objects: Vec<DrawableId>,
+    area: Rect<i32>,
+    draw_objects: Vec<ObjectId>,
 }
 
 impl Screen {
-    pub fn new(area: Rect<u16>, layer: usize, id: ScreenKey) -> Self {
+    pub fn new(area: Rect<i32>, layer: usize, id: ScreenKey) -> Self {
         Screen {
             layer,
             id,
@@ -32,14 +32,14 @@ impl Screen {
     }
 
     /// register a drawable, so it can be drawn on this screen
-    pub fn register_drawable(&mut self, obj_id: DrawableId) {
+    pub fn register_drawable(&mut self, obj_id: ObjectId) {
         self.draw_objects.push(obj_id);
     }
 
     /// render a drawable to the screen
     pub fn render_drawable<T>(
         &mut self,
-        obj_id: DrawableId,
+        object_id: ObjectId,
         screen_buffer: &mut T,
         obj_library: &DrawObjectLibrary,
         sprites: &SpriteRegistry,
@@ -47,23 +47,26 @@ impl Screen {
     where
         T: ScreenBuffer,
     {
-        let opt_obj = obj_library.find_drawable(self.id, obj_id);
+        let opt_obj = obj_library.find_drawable(&DrawObjectKey {
+            screen_id: self.id,
+            object_id,
+        });
         let mut obj = if let Some(obj) = opt_obj {
             self.shift_obj_to_local_cords(obj)
         } else {
             return Err(DrawError::DrawableHandleNotFound {
                 screen_id: self.id,
-                obj_id,
+                obj_id: object_id,
             });
         };
-        screen_buffer.add_to_buffer(&mut obj, obj_id, self.layer, &self.area, sprites)?;
+        screen_buffer.add_to_buffer(&mut obj, object_id, self.layer, &self.area, sprites)?;
         Ok(())
     }
 
     /// Remove a drawable object from the screen.
     pub fn remove_drawable<T>(
         &mut self,
-        obj_id: DrawableId,
+        object_id: ObjectId,
         screen_buffer: &mut T,
         obj_library: &DrawObjectLibrary,
         sprites: &SpriteRegistry,
@@ -71,16 +74,19 @@ impl Screen {
     where
         T: ScreenBuffer,
     {
-        let opt_obj = obj_library.find_drawable(self.id, obj_id);
+        let opt_obj = obj_library.find_drawable(&DrawObjectKey {
+            screen_id: self.id,
+            object_id,
+        });
         let obj = if let Some(obj) = opt_obj {
             self.shift_obj_to_local_cords(obj)
         } else {
             return Err(DrawError::DrawableHandleNotFound {
                 screen_id: self.id,
-                obj_id,
+                obj_id: object_id,
             });
         };
-        screen_buffer.remove_from_buffer(&obj, obj_id, sprites);
+        screen_buffer.remove_from_buffer(&obj, object_id, sprites);
         Ok(())
     }
 
@@ -99,7 +105,7 @@ impl Screen {
     where
         T: ScreenBuffer,
     {
-        let obj_ids: Vec<DrawableId> = self.draw_objects.to_vec();
+        let obj_ids: Vec<ObjectId> = self.draw_objects.to_vec();
         for obj_id in obj_ids {
             self.render_drawable(obj_id, screen_buffer, obj_library, sprites)?;
         }

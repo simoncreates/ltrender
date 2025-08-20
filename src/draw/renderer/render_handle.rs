@@ -6,10 +6,8 @@ use std::{
 use common_stdx::{Point, Rect};
 
 use crate::draw::{
-    DrawError, DrawObject, DrawableKey, Renderer, ScreenBuffer, ScreenKey, SpriteId,
-    error::AppError,
-    renderer::RenderMode,
-    terminal_buffer::standard_drawables::sprite_drawable::{AnimationInfo, FrameIdent},
+    DrawError, DrawObject, DrawObjectKey, Renderer, ScreenBuffer, ScreenKey, SpriteId,
+    error::AppError, renderer::RenderMode,
 };
 
 pub struct RendererHandle {
@@ -35,7 +33,7 @@ impl RendererHandle {
         let _ = self.tx.send(RendererCommand::SetUpdateInterval(amount));
     }
 
-    pub fn create_screen(&self, rect: Rect<u16>, layer: usize) -> ScreenKey {
+    pub fn create_screen(&self, rect: Rect<i32>, layer: usize) -> ScreenKey {
         let (reply_tx, reply_rx) = mpsc::channel();
         let _ = self
             .tx
@@ -43,7 +41,7 @@ impl RendererHandle {
         reply_rx.recv().unwrap()
     }
 
-    pub fn render_drawable(&self, id: DrawableKey) {
+    pub fn render_drawable(&self, id: DrawObjectKey) {
         let _ = self.tx.send(RendererCommand::RenderDrawable(id));
     }
 
@@ -51,7 +49,7 @@ impl RendererHandle {
         &self,
         screen_id: ScreenKey,
         obj: DrawObject,
-    ) -> Result<DrawableKey, DrawError> {
+    ) -> Result<DrawObjectKey, DrawError> {
         let (reply_tx, reply_rx) = mpsc::channel();
         let _ = self
             .tx
@@ -67,13 +65,13 @@ impl RendererHandle {
         reply_rx.recv().unwrap()
     }
 
-    pub fn replace_drawable_points(&self, id: DrawableKey, pts: Vec<Point<u16>>) {
+    pub fn replace_drawable_points(&self, id: DrawObjectKey, pts: Vec<Point<i32>>) {
         let _ = self
             .tx
             .send(RendererCommand::ReplaceDrawablePoints(id, pts));
     }
 
-    pub fn move_drawable_by(&self, id: DrawableKey, dx: i32, dy: i32) {
+    pub fn move_drawable_by(&self, id: DrawObjectKey, dx: i32, dy: i32) {
         let _ = self.tx.send(RendererCommand::MoveDrawableBy(id, dx, dy));
     }
 
@@ -159,21 +157,21 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
 pub enum RendererCommand {
     SetRenderMode(RenderMode),
     SetUpdateInterval(usize),
-    CreateScreen(Rect<u16>, usize, std::sync::mpsc::Sender<ScreenKey>),
+    CreateScreen(Rect<i32>, usize, std::sync::mpsc::Sender<ScreenKey>),
     RegisterDrawable(
         ScreenKey,
         DrawObject,
-        std::sync::mpsc::Sender<Result<DrawableKey, DrawError>>,
+        std::sync::mpsc::Sender<Result<DrawObjectKey, DrawError>>,
     ),
-    RemoveDrawable(DrawableKey),
+    RemoveDrawable(DrawObjectKey),
     RegisterSpriteFromSource(String, std::sync::mpsc::Sender<Result<SpriteId, AppError>>),
-    RenderDrawable(DrawableKey),
-    ReplaceDrawable(DrawableKey, DrawObject),
-    ReplaceDrawablePoints(DrawableKey, Vec<Point<u16>>),
-    MoveDrawableTo(DrawableKey, Point<u16>),
-    MoveDrawableBy(DrawableKey, i32, i32),
-    MoveDrawablePoint(DrawableKey, usize, Point<u16>),
-    MoveMultiPointDrawablePoint(DrawableKey, usize, Point<u16>),
+    RenderDrawable(DrawObjectKey),
+    ReplaceDrawable(DrawObjectKey, DrawObject),
+    ReplaceDrawablePoints(DrawObjectKey, Vec<Point<i32>>),
+    MoveDrawableTo(DrawObjectKey, Point<i32>),
+    MoveDrawableBy(DrawObjectKey, i32, i32),
+    MoveDrawablePoint(DrawObjectKey, usize, Point<i32>),
+    MoveMultiPointDrawablePoint(DrawObjectKey, usize, Point<i32>),
     HandleResize((u16, u16)),
     RenderFrame,
     ClearTerminal,

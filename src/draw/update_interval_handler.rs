@@ -51,7 +51,7 @@ impl UpdateIntervalHandler {
         }
     }
 
-    pub fn merge_redraw_regions(&mut self, hash: HashMap<u16, Vec<UpdateInterval>>) {
+    pub fn merge_redraw_regions(&mut self, hash: HashMap<i32, Vec<UpdateInterval>>) {
         let width = self.width as usize;
 
         for (y, ivs) in hash.into_iter() {

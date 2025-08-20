@@ -13,15 +13,15 @@ use crate::draw::{
 
 #[derive(Debug, Clone)]
 pub struct PolygonDrawable {
-    pub points: Vec<Point<u16>>,
+    pub points: Vec<Point<i32>>,
     pub border_style: TerminalChar,
     pub fill_style: Option<TerminalChar>,
 }
 
 // this ones stolen from chatgpt
-fn scanline_intersection_x(p0: Point<u16>, p1: Point<u16>, y: i32) -> Option<f32> {
-    let y0 = p0.y as i32;
-    let y1 = p1.y as i32;
+fn scanline_intersection_x(p0: Point<i32>, p1: Point<i32>, y: i32) -> Option<f32> {
+    let y0 = p0.y;
+    let y1 = p1.y;
     if y0 == y1 {
         return None;
     }
@@ -36,17 +36,17 @@ fn scanline_intersection_x(p0: Point<u16>, p1: Point<u16>, y: i32) -> Option<f32
     Some(x0 + t * (x1 - x0))
 }
 
-fn rasterize_border(points: &[Point<u16>]) -> HashMap<u16, Vec<u16>> {
-    let mut map: HashMap<u16, Vec<u16>> = HashMap::new();
+fn rasterize_border(points: &[Point<i32>]) -> HashMap<i32, Vec<i32>> {
+    let mut map: HashMap<i32, Vec<i32>> = HashMap::new();
     if points.is_empty() {
         return map;
     }
 
     for i in 0..points.len() {
-        let mut x0 = points[i].x as i32;
-        let mut y0 = points[i].y as i32;
-        let x1 = points[(i + 1) % points.len()].x as i32;
-        let y1 = points[(i + 1) % points.len()].y as i32;
+        let mut x0 = points[i].x;
+        let mut y0 = points[i].y;
+        let x1 = points[(i + 1) % points.len()].x;
+        let y1 = points[(i + 1) % points.len()].y;
 
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -57,8 +57,8 @@ fn rasterize_border(points: &[Point<u16>]) -> HashMap<u16, Vec<u16>> {
         let mut err = dx + dy;
 
         loop {
-            let yk = y0 as u16;
-            let xk = x0 as u16;
+            let yk = y0;
+            let xk = x0;
             map.entry(yk).or_default().push(xk);
 
             if x0 == x1 && y0 == y1 {
@@ -87,7 +87,7 @@ fn rasterize_border(points: &[Point<u16>]) -> HashMap<u16, Vec<u16>> {
 }
 
 // this ones chatgpt too
-fn compute_scanline_intervals(points: &[Point<u16>]) -> IvHashMap {
+fn compute_scanline_intervals(points: &[Point<i32>]) -> IvHashMap {
     let mut intervals: IvHashMap = HashMap::new();
     if points.is_empty() {
         return intervals;
@@ -96,7 +96,7 @@ fn compute_scanline_intervals(points: &[Point<u16>]) -> IvHashMap {
     let mut y_min = u16::MAX as i32;
     let mut y_max = u16::MIN as i32;
     for p in points {
-        let py = p.y as i32;
+        let py = p.y;
         if py < y_min {
             y_min = py;
         }
@@ -133,22 +133,22 @@ fn compute_scanline_intervals(points: &[Point<u16>]) -> IvHashMap {
         }
 
         if !row.is_empty() {
-            intervals.insert(y as u16, row);
+            intervals.insert(y, row);
         }
     }
 
     intervals
 }
 
-type IvHashMap = HashMap<u16, Vec<(u16, u16)>>;
+type IvHashMap = HashMap<i32, Vec<(u16, u16)>>;
 
 /// Compute both border_set (pixel positions) and bounding intervals
 /// - border_set: for skipping border pixels during fill
 /// - bounding_intervals: intervals including the border
-fn compute_border_and_bounding(points: &[Point<u16>]) -> (HashSet<Point<u16>>, IvHashMap) {
+fn compute_border_and_bounding(points: &[Point<i32>]) -> (HashSet<Point<i32>>, IvHashMap) {
     let border_map = rasterize_border(points);
 
-    let mut border_set: HashSet<Point<u16>> = HashSet::new();
+    let mut border_set: HashSet<Point<i32>> = HashSet::new();
     for (&y, xs) in &border_map {
         for &x in xs {
             border_set.insert(Point { x, y });
@@ -158,7 +158,7 @@ fn compute_border_and_bounding(points: &[Point<u16>]) -> (HashSet<Point<u16>>, I
     let mut fill_map = compute_scanline_intervals(points);
 
     // collect Y values from both maps
-    let mut ys: Vec<u16> = fill_map.keys().cloned().collect();
+    let mut ys: Vec<i32> = fill_map.keys().cloned().collect();
     for &y in border_map.keys() {
         if !ys.contains(&y) {
             ys.push(y);
@@ -176,7 +176,7 @@ fn compute_border_and_bounding(points: &[Point<u16>]) -> (HashSet<Point<u16>>, I
 
         if let Some(bxs) = border_map.get(&y) {
             for &x in bxs {
-                ints.push((x, x));
+                ints.push((x as u16, x as u16));
             }
         }
 
@@ -189,21 +189,21 @@ fn compute_border_and_bounding(points: &[Point<u16>]) -> (HashSet<Point<u16>>, I
 }
 
 impl MultiPointed for PolygonDrawable {
-    fn points(&self) -> &[Point<u16>] {
+    fn points(&self) -> &[Point<i32>] {
         &self.points
     }
 
-    fn set_points(&mut self, points: Vec<Point<u16>>) {
+    fn set_points(&mut self, points: Vec<Point<i32>>) {
         self.points = points;
     }
 
-    fn set_point(&mut self, idx: usize, p: Point<u16>) {
+    fn set_point(&mut self, idx: usize, p: Point<i32>) {
         if idx < self.points.len() {
             self.points[idx] = p;
         }
     }
 
-    fn get_point(&self, idx: usize) -> Option<Point<u16>> {
+    fn get_point(&self, idx: usize) -> Option<Point<i32>> {
         self.points.get(idx).cloned()
     }
 }
@@ -213,10 +213,10 @@ impl Drawable for PolygonDrawable {
         &self,
         _sprites: &crate::draw::SpriteRegistry,
     ) -> Result<(u16, u16), crate::draw::DrawError> {
-        let mut low_x = u16::MAX;
-        let mut low_y = u16::MAX;
-        let mut high_x = u16::MIN;
-        let mut high_y = u16::MIN;
+        let mut low_x = i32::MAX;
+        let mut low_y = i32::MAX;
+        let mut high_x = i32::MIN;
+        let mut high_y = i32::MIN;
         for p in &self.points {
             if p.x < low_x {
                 low_x = p.x
@@ -231,7 +231,7 @@ impl Drawable for PolygonDrawable {
                 high_y = p.y
             }
         }
-        let size = (high_x - low_x, high_y - low_y);
+        let size = ((high_x - low_x) as u16, (high_y - low_y) as u16);
 
         Ok(size)
     }
@@ -242,7 +242,7 @@ impl Drawable for PolygonDrawable {
         Some(self)
     }
 
-    fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable> {
+    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
         let new_points = self.points.iter().map(|p| *p + offset).collect();
         Box::new(PolygonDrawable {
             points: new_points,
@@ -279,7 +279,7 @@ impl Drawable for PolygonDrawable {
         for (y, row_intervals) in compute_scanline_intervals(&self.points) {
             for (start, end) in row_intervals {
                 for x in start..=end {
-                    let pos = Point { x, y };
+                    let pos = Point { x: x as i32, y };
                     if border_set.contains(&pos) {
                         continue;
                     }
@@ -294,8 +294,8 @@ impl Drawable for PolygonDrawable {
     fn bounding_iv(
         &self,
         _: &crate::draw::SpriteRegistry,
-    ) -> std::collections::HashMap<u16, Vec<crate::draw::UpdateInterval>> {
-        let mut intervals: HashMap<u16, Vec<crate::draw::UpdateInterval>> = HashMap::new();
+    ) -> std::collections::HashMap<i32, Vec<crate::draw::UpdateInterval>> {
+        let mut intervals: HashMap<i32, Vec<crate::draw::UpdateInterval>> = HashMap::new();
 
         if self.points.is_empty() {
             return intervals;

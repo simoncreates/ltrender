@@ -5,9 +5,11 @@ use crate::draw::{
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
 
+use crate::{handle_char_field, handle_pointed_field};
+
 #[derive(Default)]
 pub struct CircleDrawableBuilder {
-    center: Option<Point<u16>>,
+    center: Option<Point<i32>>,
     radius: Option<u16>,
     border_style: Option<TerminalChar>,
     fill_style: Option<TerminalChar>,
@@ -18,25 +20,15 @@ impl CircleDrawableBuilder {
         Self::default()
     }
 
-    pub fn center(mut self, center: Point<u16>) -> Self {
-        self.center = Some(center);
-        self
-    }
+    handle_pointed_field!(center, center);
 
     pub fn radius(mut self, radius: u16) -> Self {
         self.radius = Some(radius);
         self
     }
 
-    pub fn border_style(mut self, style: TerminalChar) -> Self {
-        self.border_style = Some(style);
-        self
-    }
-
-    pub fn fill_style(mut self, style: TerminalChar) -> Self {
-        self.fill_style = Some(style);
-        self
-    }
+    handle_char_field!(border_style, border_style);
+    handle_char_field!(fill_style, fill_style);
 
     pub fn build(self) -> Result<Box<dyn Drawable>, DrawObjectBuilderError> {
         Ok(Box::new(CircleDrawable {

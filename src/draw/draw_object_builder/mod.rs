@@ -1,5 +1,5 @@
 use crate::draw::{
-    DrawObject, DrawableKey, ScreenKey,
+    DrawObject, DrawObjectKey, ScreenKey,
     error::{AppError, DrawObjectBuilderError},
     renderer::RendererHandle,
     terminal_buffer::{Drawable, screen_buffer::Shader},
@@ -38,6 +38,28 @@ macro_rules! handle_field {
     };
 }
 
+#[macro_export]
+macro_rules! handle_pointed_field {
+    ($fn_name:ident, $field_name:ident) => {
+        pub fn $fn_name(mut self, $field_name: impl Into<Point<i32>>) -> Self {
+            let point = $field_name.into();
+            self.$field_name = Some(point);
+            self
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! handle_char_field {
+    ($fn_name:ident, $field_name:ident) => {
+        pub fn $fn_name(mut self, $field_name: impl Into<TerminalChar>) -> Self {
+            let point = $field_name.into();
+            self.$field_name = Some(point);
+            self
+        }
+    };
+}
+
 #[derive(Default)]
 pub struct DrawObjectBuilder {
     layer: Option<usize>,
@@ -64,11 +86,9 @@ impl DrawObjectBuilder {
         self.shaders.push(Box::new(shader));
         self
     }
-    pub fn drawable<T>(&mut self, drawable: T) -> &mut Self
-    where
-        T: Drawable + 'static,
-    {
-        self.drawable = Some(Box::new(drawable));
+
+    pub fn drawable(&mut self, drawable: Box<dyn Drawable>) -> &mut Self {
+        self.drawable = Some(drawable);
         self
     }
 
@@ -78,7 +98,7 @@ impl DrawObjectBuilder {
     allow_drawable_building!(PolygonDrawableBuilder, polygon_drawable);
     allow_drawable_building!(RectDrawableBuilder, rect_drawable);
 
-    pub fn build(&self, render_handle: &mut RendererHandle) -> Result<DrawableKey, AppError> {
+    pub fn build(&self, render_handle: &mut RendererHandle) -> Result<DrawObjectKey, AppError> {
         let layer = self.layer.ok_or(DrawObjectBuilderError::NoLayerAdded())?;
 
         let screen_id = self

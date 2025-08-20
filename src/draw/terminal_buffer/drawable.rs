@@ -6,8 +6,8 @@ use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 use std::collections::HashMap;
 
-pub fn convert_rect_to_update_intervals(rect: Rect<u16>) -> HashMap<u16, Vec<UpdateInterval>> {
-    let mut intervals: HashMap<u16, Vec<UpdateInterval>> = HashMap::new();
+pub fn convert_rect_to_update_intervals(rect: Rect<i32>) -> HashMap<i32, Vec<UpdateInterval>> {
+    let mut intervals: HashMap<i32, Vec<UpdateInterval>> = HashMap::new();
     let iv = (rect.p1.x as usize, rect.p2.x as usize);
 
     for y in rect.p1.y..rect.p2.y {
@@ -22,7 +22,7 @@ pub fn convert_rect_to_update_intervals(rect: Rect<u16>) -> HashMap<u16, Vec<Upd
 
 #[derive(Debug)]
 pub struct BasicDraw {
-    pub pos: Point<u16>,
+    pub pos: Point<i32>,
     pub chr: TerminalChar,
 }
 
@@ -83,7 +83,7 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     ///     },
     /// })
     /// ```
-    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<u16, Vec<UpdateInterval>>;
+    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>>;
 
     /// Return **a new** drawable that has been shifted by the given offset.
     ///
@@ -121,7 +121,7 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     ///
     /// assert_eq!(shifted.position, Point { x: 10, y: 5 });
     /// ```
-    fn shifted(&self, offset: Point<u16>) -> Box<dyn Drawable>;
+    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable>;
 
     fn size(&self, sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError>;
 
@@ -150,20 +150,20 @@ impl Clone for Box<dyn Drawable> {
 /// One point that can be read / written.
 pub trait SinglePointed {
     /// The current position of the object.
-    fn position(&self) -> Point<u16>;
+    fn position(&self) -> Point<i32>;
     /// Change the stored position.
-    fn set_position(&mut self, p: Point<u16>);
+    fn set_position(&mut self, p: Point<i32>);
 }
 
 /// Two points (start & end)
 pub trait DoublePointed {
     /// Return the two defining points.
-    fn start(&self) -> Point<u16>;
-    fn end(&self) -> Point<u16>;
+    fn start(&self) -> Point<i32>;
+    fn end(&self) -> Point<i32>;
 
     /// Mutably change one of them.
-    fn set_start(&mut self, p: Point<u16>);
-    fn set_end(&mut self, p: Point<u16>);
+    fn set_start(&mut self, p: Point<i32>);
+    fn set_end(&mut self, p: Point<i32>);
 }
 
 /// A collection of points
@@ -171,11 +171,11 @@ pub trait DoublePointed {
 /// when a variable amount of points and or more than two Points are needed for a drawable
 pub trait MultiPointed {
     /// get a point at the given index
-    fn get_point(&self, idx: usize) -> Option<Point<u16>>;
+    fn get_point(&self, idx: usize) -> Option<Point<i32>>;
     /// set a point at the given index
-    fn set_point(&mut self, idx: usize, p: Point<u16>);
+    fn set_point(&mut self, idx: usize, p: Point<i32>);
     /// get all current points
-    fn points(&self) -> &[Point<u16>];
+    fn points(&self) -> &[Point<i32>];
     /// replace all current points
-    fn set_points(&mut self, points: Vec<Point<u16>>);
+    fn set_points(&mut self, points: Vec<Point<i32>>);
 }
