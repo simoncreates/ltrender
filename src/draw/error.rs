@@ -85,6 +85,9 @@ pub enum DrawObjectBuilderError {
 
     #[error("Failed to build the rect object")]
     FailedToBuildRectObject(),
+
+    #[error("Failed to build VideoStreamDrawable due to missing receiver")]
+    FailedToBuildVideoStream(),
 }
 
 // convert to DrawError

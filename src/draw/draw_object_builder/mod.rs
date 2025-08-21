@@ -14,6 +14,8 @@ pub mod polygon_drawable_builder;
 pub use polygon_drawable_builder::PolygonDrawableBuilder;
 pub mod rect_drawable_builder;
 pub use rect_drawable_builder::RectDrawableBuilder;
+pub mod videostream_drawable_builder;
+pub use videostream_drawable_builder::VideoStreamDrawableBuilder;
 
 macro_rules! allow_drawable_building {
     ($builder_name:ident, $fn_name:ident) => {
@@ -29,9 +31,10 @@ macro_rules! allow_drawable_building {
     };
 }
 
+#[macro_export]
 macro_rules! handle_field {
-    ($fn_name:ident, $field_name:ident) => {
-        pub fn $fn_name(&mut self, $field_name: usize) -> &mut Self {
+    ($fn_name:ident, $field_name:ident, $type:ty) => {
+        pub fn $fn_name(&mut self, $field_name: $type) -> &mut Self {
             self.$field_name = Some($field_name);
             self
         }
@@ -77,8 +80,8 @@ impl DrawObjectBuilder {
             screen_id: None,
         }
     }
-    handle_field!(layer, layer);
-    handle_field!(screen, screen_id);
+    handle_field!(layer, layer, usize);
+    handle_field!(screen, screen_id, usize);
     pub fn shader<T>(&mut self, shader: T) -> &mut Self
     where
         T: Shader + 'static,
@@ -97,6 +100,7 @@ impl DrawObjectBuilder {
     allow_drawable_building!(LineDrawableBuilder, line_drawable);
     allow_drawable_building!(PolygonDrawableBuilder, polygon_drawable);
     allow_drawable_building!(RectDrawableBuilder, rect_drawable);
+    allow_drawable_building!(VideoStreamDrawableBuilder, videostream_drawable);
 
     pub fn build(&self, render_handle: &mut RendererHandle) -> Result<DrawObjectKey, AppError> {
         let layer = self.layer.ok_or(DrawObjectBuilderError::NoLayerAdded())?;

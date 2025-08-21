@@ -8,3 +8,5 @@ pub mod polygon_drawable;
 pub use polygon_drawable::PolygonDrawable;
 pub mod circle_drawable;
 pub use circle_drawable::CircleDrawable;
+pub mod videostream_drawable;
+pub use videostream_drawable::VideoStreamDrawable;

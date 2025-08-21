@@ -3,23 +3,27 @@ use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, poll, read};
 use crossterm::terminal::size;
 use env_logger::Builder;
+use flume::Sender;
 use log::info;
 use rand::Rng as _;
 use std::fs::File;
 use std::io::Write;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::draw::draw_object_builder::SpriteDrawableBuilder;
+use crate::draw::draw_object_builder::videostream_drawable_builder::make_videostream_drawable;
 use crate::draw::error::AppError;
-use crate::draw::renderer::RendererHandle;
-use crate::draw::terminal_buffer::screen_buffer::shaders::{
-    FlipDiagonal, FlipHorizontal, Grayscale,
-};
+use crate::draw::renderer::render_handle::RendererManager;
+use crate::draw::renderer::{RendererHandle, render_handle};
+use crate::draw::terminal_buffer::drawable;
+use crate::draw::terminal_buffer::screen_buffer::shaders::{FlipHorizontal, Grayscale};
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::terminal_buffer::standard_drawables::PolygonDrawable;
 use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
+use crate::draw::terminal_buffer::standard_drawables::videostream_drawable::StreamFrame;
 use crate::draw::{DrawObject, DrawObjectBuilder, DrawObjectKey};
 
 pub mod draw;
@@ -30,6 +34,56 @@ struct PolyAnim {
     sides: usize,
     angle: f64,
     speed: f64,
+}
+
+fn create_frame(width: u16, height: u16, tick: usize) -> Vec<Option<TerminalChar>> {
+    let mut data: Vec<Option<TerminalChar>> =
+        Vec::with_capacity((width as usize) * (height as usize));
+
+    for y in 0..height {
+        for x in 0..width {
+            let ch = if (x + tick as u16) % width == 0 && y == height / 2 {
+                Some(TerminalChar::with_fg('X', Color::Red))
+            } else {
+                None
+            };
+
+            data.push(ch);
+        }
+    }
+
+    data
+}
+
+fn spawn_frame_sender(
+    sender: Sender<StreamFrame>,
+    render_handle: RendererHandle,
+    drawobjectkey: DrawObjectKey,
+) {
+    // Pick a size – the same one you will set on the drawable.
+    const WIDTH: u16 = 80;
+    const HEIGHT: u16 = 24;
+
+    thread::spawn(move || {
+        let mut tick = 0usize;
+        loop {
+            let frame_data = create_frame(WIDTH, HEIGHT, tick);
+            let frame = StreamFrame {
+                data: frame_data,
+                size: (WIDTH, HEIGHT),
+            };
+
+            // If the renderer drops the channel we stop producing.
+            if sender.send(frame).is_err() {
+                break;
+            }
+            render_handle.render_drawable(drawobjectkey);
+
+            // ~30 FPS
+            thread::sleep(Duration::from_millis(33));
+            tick = tick.wrapping_add(1);
+        }
+    });
 }
 
 fn generate_regular_polygon(cx: f64, cy: f64, r: f64, sides: usize) -> Vec<Point<i32>> {
@@ -60,7 +114,8 @@ fn main() -> Result<(), AppError> {
 
     let term_size = size()?;
 
-    let mut r = RendererHandle::new::<DefaultScreenBuffer>(term_size, 500);
+    let (manager, mut r) = RendererManager::new::<DefaultScreenBuffer>(term_size, 500);
+
     r.set_update_interval(20);
 
     // create screen
@@ -72,12 +127,15 @@ fn main() -> Result<(), AppError> {
     let sprite_id =
         r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())?;
 
-    let circle_id = DrawObjectBuilder::default()
-        .layer(50)
+    let (sender, drawable) = make_videostream_drawable((10, 10))?;
+
+    let videostream_id = DrawObjectBuilder::default()
+        .layer(8000)
         .screen(screen_id)
-        .circle_drawable(|c| c.radius(4).center((20, 20)).radius(13).border_style('G'))?
-        .shader(FlipDiagonal)
+        .drawable(drawable)
         .build(&mut r)?;
+
+    spawn_frame_sender(sender, r.clone(), videostream_id);
 
     let video_drawable = SpriteDrawableBuilder::default()
         .sprite_id(sprite_id)
@@ -96,6 +154,35 @@ fn main() -> Result<(), AppError> {
         .drawable(video_drawable)
         .shader(FlipHorizontal)
         .shader(Grayscale)
+        .build(&mut r)?;
+
+    let points: Vec<Point<i32>> = vec![
+        Point { x: 10, y: 2 },
+        Point { x: 14, y: 8 },
+        Point { x: 20, y: 4 },
+        Point { x: 16, y: 12 },
+        Point { x: 20, y: 20 },
+        Point { x: 14, y: 16 },
+        Point { x: 10, y: 22 },
+        Point { x: 6, y: 12 },
+    ];
+
+    let polygon_id = DrawObjectBuilder::default()
+        .layer(6000)
+        .screen(screen_id)
+        .polygon_drawable(|p| {
+            p.border_style('P').points(points).fill_style(TerminalChar {
+                chr: ' ',
+                fg_color: Some(Color {
+                    reset: false,
+                    rgb: (200, 40, 255),
+                }),
+                bg_color: Some(Color {
+                    reset: false,
+                    rgb: (200, 40, 255),
+                }),
+            })
+        })?
         .build(&mut r)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
@@ -195,7 +282,7 @@ fn main() -> Result<(), AppError> {
                 });
             }
             r.replace_drawable_points(anim.id, new_pts);
-            r.render_drawable(anim.id);
+            // r.render_drawable(anim.id);
         }
 
         let frame_duration = start.elapsed();
@@ -217,12 +304,13 @@ fn main() -> Result<(), AppError> {
         //thread::sleep(Duration::from_millis(80));
 
         r.render_drawable(sprite_video_id);
-        r.render_drawable(circle_id);
+        r.render_drawable(polygon_id);
+
         r.render_frame();
         r.clear_terminal();
     }
 
-    r.stop();
+    manager.stop();
     crate::draw::restore_terminal()?;
     Ok(())
 }

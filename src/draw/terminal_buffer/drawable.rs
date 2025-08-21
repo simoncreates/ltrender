@@ -20,7 +20,7 @@ pub fn convert_rect_to_update_intervals(rect: Rect<i32>) -> HashMap<i32, Vec<Upd
     intervals
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct BasicDraw {
     pub pos: Point<i32>,
     pub chr: TerminalChar,
