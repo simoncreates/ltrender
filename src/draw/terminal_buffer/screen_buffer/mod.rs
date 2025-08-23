@@ -4,7 +4,6 @@ use crate::draw::{
     update_interval_handler::UpdateIntervalCreator,
 };
 use common_stdx::Rect;
-use log::info;
 
 use std::{collections::HashMap, fmt::Debug};
 
@@ -88,12 +87,18 @@ pub trait ScreenBuffer: ScreenBufferCore {
 
         let mut draws = drawable.draw(sprites)?;
 
+        let top_left = if let Some(corner) = drawable.get_top_left() {
+            corner
+        } else {
+            Point { x: 0, y: 0 }
+        };
+
         let opt_c = drawable.bounding_iv(sprites);
         _ = self.handle_none_interval_creator(opt_c);
         let size = drawable.size(sprites)?;
         for rd in draws.iter_mut() {
             for shader in &obj.shaders {
-                shader.apply(rd, (size.0 as usize, size.1 as usize));
+                shader.apply(rd, (size.0 as usize, size.1 as usize), top_left);
             }
             if !bounds.contains(rd.pos) {
                 continue;

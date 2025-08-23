@@ -2,6 +2,7 @@ use crate::draw::{DrawError, SpriteRegistry, update_interval_handler::UpdateInte
 
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
+use log::warn;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BasicDraw {
@@ -93,6 +94,18 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable>;
 
     fn size(&self, sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError>;
+
+    fn get_top_left(&mut self) -> Option<Point<i32>> {
+        if self.as_double_pointed_mut().is_some() {
+            Some(self.as_double_pointed_mut().unwrap().start())
+        } else if self.as_single_pointed_mut().is_some() {
+            Some(self.as_single_pointed_mut().unwrap().position())
+        } else {
+            warn!("drawable has not been given an explicit top left corner");
+            warn!("to fix, implement get_top_left");
+            None
+        }
+    }
 
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         None

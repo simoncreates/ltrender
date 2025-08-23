@@ -17,7 +17,7 @@ use crate::draw::error::AppError;
 use crate::draw::renderer::RendererHandle;
 use crate::draw::renderer::render_handle::RendererManager;
 use crate::draw::terminal_buffer::screen_buffer::shaders::{
-    FlipHorizontal, FlipVertical, Grayscale,
+    FlipDiagonal, FlipHorizontal, FlipVertical, Grayscale,
 };
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
@@ -149,6 +149,7 @@ fn main() -> Result<(), AppError> {
         .screen(screen_id)
         .drawable(drawable)
         .shader(FlipVertical)
+        .shader(FlipHorizontal)
         .build(&mut r)?;
 
     spawn_frame_sender(sender, r.clone(), videostream_id);
@@ -184,22 +185,61 @@ fn main() -> Result<(), AppError> {
     ];
 
     let text_drawable = Box::new(text_drawable::TextDrawable {
-        area: Rect::from_coords(0, 0, term_size.0 as i32, term_size.1 as i32),
+        area: Rect::from_coords(50, 50, 60, 60),
         lines: vec![
             text_drawable::LineInfo {
-                text: "Hello, world!".to_string(),
-                spans: vec![],
-                alignment: text_drawable::TextAlignment::Center,
-                default_style: text_drawable::TextStyle::default(),
+                text: "Hello, gooon world!".to_string(),
+                spans: vec![
+                    text_drawable::StyledSpan {
+                        range: 0..5,
+                        style: text_drawable::TextStyle {
+                            foreground: Some(Color::Red),
+                            ..Default::default()
+                        },
+                    },
+                    text_drawable::StyledSpan {
+                        range: 7..13,
+                        style: text_drawable::TextStyle {
+                            bold: Some(true),
+                            italic: Some(true),
+                            ..Default::default()
+                        },
+                    },
+                    text_drawable::StyledSpan {
+                        range: 7..17,
+                        style: text_drawable::TextStyle {
+                            foreground: Some(Color::Blue),
+                            ..Default::default()
+                        },
+                    },
+                ],
+                alignment: text_drawable::TextAlignment::Left,
+                default_style: text_drawable::TextStyle {
+                    foreground: Some(Color::White),
+                    ..Default::default()
+                },
             },
             text_drawable::LineInfo {
-                text: "i dont hate gooing!".to_string(),
+                text: "centered line".to_string(),
+                spans: vec![],
+                alignment: text_drawable::TextAlignment::Center,
+                default_style: text_drawable::TextStyle {
+                    foreground: Some(Color::Green),
+                    bold: Some(true),
+                    ..Default::default()
+                },
+            },
+            text_drawable::LineInfo {
+                text: "this is right".to_string(),
                 spans: vec![],
                 alignment: text_drawable::TextAlignment::Right,
-                default_style: text_drawable::TextStyle::default(),
+                default_style: text_drawable::TextStyle {
+                    background: Some(Color::Red),
+                    ..Default::default()
+                },
             },
         ],
-        wrapping: false,
+        wrapping: true,
         scroll_y: 0,
     });
 
