@@ -1,14 +1,13 @@
-use std::collections::HashMap;
-
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 
 use crate::draw::{
-    DrawError, SpriteRegistry, UpdateInterval,
+    DrawError, SpriteRegistry,
     terminal_buffer::{
         Drawable,
-        drawable::{BasicDraw, DoublePointed, convert_rect_to_update_intervals},
+        drawable::{BasicDraw, DoublePointed},
     },
+    update_interval_handler::UpdateIntervalCreator,
 };
 
 #[derive(Clone, Debug)]
@@ -89,19 +88,22 @@ impl Drawable for LineDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
+        let mut c = UpdateIntervalCreator::new();
+
         let min_x = self.start.x.min(self.end.x);
         let max_x = self.start.x.max(self.end.x);
         let min_y = self.start.y.min(self.end.y);
         let max_y = self.start.y.max(self.end.y);
 
-        convert_rect_to_update_intervals(Rect {
+        c.register_redraw_region(Rect {
             p1: Point { x: min_x, y: min_y },
             p2: Point {
                 x: max_x.saturating_add(1),
                 y: max_y.saturating_add(1),
             },
-        })
+        });
+        Some(c)
     }
 
     fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {

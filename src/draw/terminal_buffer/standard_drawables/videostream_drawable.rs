@@ -1,15 +1,15 @@
+use crate::draw::{
+    DrawError, SpriteRegistry,
+    terminal_buffer::{
+        Drawable,
+        drawable::{BasicDraw, SinglePointed},
+    },
+    update_interval_handler::UpdateIntervalCreator,
+};
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 use flume::{Receiver, TryRecvError};
-use std::collections::HashMap;
-
-use crate::draw::{
-    DrawError, SpriteRegistry, UpdateInterval,
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, SinglePointed, convert_rect_to_update_intervals},
-    },
-};
+use log::info;
 
 #[derive(Debug, Clone)]
 pub struct StreamFrame {
@@ -73,12 +73,18 @@ impl Drawable for VideoStreamDrawable {
                     }
                 }
 
+                if draws.is_empty() {
+                    return Ok(Vec::new());
+                }
+                info!("draws: {:?}", draws[0].pos);
                 Ok(draws)
             }
             Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => Ok(Vec::new()),
         }
     }
-    fn bounding_iv(&self, _: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, _: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
+        let mut c = UpdateIntervalCreator::new();
+
         let rect = Rect {
             p1: self.position,
             p2: Point {
@@ -87,7 +93,8 @@ impl Drawable for VideoStreamDrawable {
             },
         };
 
-        convert_rect_to_update_intervals(rect)
+        c.register_redraw_region(rect);
+        Some(c)
     }
 
     fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {

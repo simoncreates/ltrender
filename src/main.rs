@@ -14,16 +14,17 @@ use std::time::{Duration, Instant};
 use crate::draw::draw_object_builder::SpriteDrawableBuilder;
 use crate::draw::draw_object_builder::videostream_drawable_builder::make_videostream_drawable;
 use crate::draw::error::AppError;
+use crate::draw::renderer::RendererHandle;
 use crate::draw::renderer::render_handle::RendererManager;
-use crate::draw::renderer::{RendererHandle, render_handle};
-use crate::draw::terminal_buffer::drawable;
-use crate::draw::terminal_buffer::screen_buffer::shaders::{FlipHorizontal, Grayscale};
+use crate::draw::terminal_buffer::screen_buffer::shaders::{
+    FlipHorizontal, FlipVertical, Grayscale,
+};
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
-use crate::draw::terminal_buffer::standard_drawables::PolygonDrawable;
 use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
 use crate::draw::terminal_buffer::standard_drawables::videostream_drawable::StreamFrame;
+use crate::draw::terminal_buffer::standard_drawables::{PolygonDrawable, text_drawable};
 use crate::draw::{DrawObject, DrawObjectBuilder, DrawObjectKey};
 
 pub mod draw;
@@ -39,13 +40,28 @@ struct PolyAnim {
 fn create_frame(width: u16, height: u16, tick: usize) -> Vec<Option<TerminalChar>> {
     let mut data: Vec<Option<TerminalChar>> =
         Vec::with_capacity((width as usize) * (height as usize));
+    let chars = [' ', '.', '-', '~', '*', '+', 'o', 'O', '@', '#'];
 
     for y in 0..height {
         for x in 0..width {
-            let ch = if (x + tick as u16) % width == 0 && y == height / 2 {
-                Some(TerminalChar::with_fg('X', Color::Red))
+            let xf = x as f32;
+            let yf = y as f32;
+            let w = width as f32;
+            let h = height as f32;
+
+            let wave = (xf + tick as f32) * 0.2;
+            let sin_y = (wave).sin();
+            let normalized = (sin_y + 1.0) / 2.0;
+            let target_y = normalized * h;
+
+            let dy = (yf - target_y).abs();
+
+            let ch = if dy < 0.5 {
+                Some(TerminalChar::with_fg('@', Color::Blue))
             } else {
-                None
+                let brightness = ((yf / h) * (chars.len() as f32 - 1.0)) as usize;
+                let symbol = chars[brightness.min(chars.len() - 1)];
+                Some(TerminalChar::from_char(symbol))
             };
 
             data.push(ch);
@@ -116,8 +132,7 @@ fn main() -> Result<(), AppError> {
 
     let (manager, mut r) = RendererManager::new::<DefaultScreenBuffer>(term_size, 500);
 
-    r.set_update_interval(20);
-
+    r.set_update_interval(2000000000000);
     // create screen
     let screen_id = r.create_screen(
         Rect::from_coords(0, 0, term_size.0 as i32, term_size.1 as i32),
@@ -133,6 +148,7 @@ fn main() -> Result<(), AppError> {
         .layer(8000)
         .screen(screen_id)
         .drawable(drawable)
+        .shader(FlipVertical)
         .build(&mut r)?;
 
     spawn_frame_sender(sender, r.clone(), videostream_id);
@@ -167,6 +183,32 @@ fn main() -> Result<(), AppError> {
         Point { x: 6, y: 12 },
     ];
 
+    let text_drawable = Box::new(text_drawable::TextDrawable {
+        area: Rect::from_coords(0, 0, term_size.0 as i32, term_size.1 as i32),
+        lines: vec![
+            text_drawable::LineInfo {
+                text: "Hello, world!".to_string(),
+                spans: vec![],
+                alignment: text_drawable::TextAlignment::Center,
+                default_style: text_drawable::TextStyle::default(),
+            },
+            text_drawable::LineInfo {
+                text: "i dont hate gooing!".to_string(),
+                spans: vec![],
+                alignment: text_drawable::TextAlignment::Right,
+                default_style: text_drawable::TextStyle::default(),
+            },
+        ],
+        wrapping: false,
+        scroll_y: 0,
+    });
+
+    let text_id = DrawObjectBuilder::default()
+        .layer(34095803498)
+        .screen(screen_id)
+        .drawable(text_drawable)
+        .build(&mut r)?;
+
     let polygon_id = DrawObjectBuilder::default()
         .layer(6000)
         .screen(screen_id)
@@ -186,7 +228,7 @@ fn main() -> Result<(), AppError> {
         .build(&mut r)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
-    for i in 0..3 {
+    for i in 0..20 {
         let cx = rng.gen_range(2..term_size.0 - 2) as f64;
         let cy = rng.gen_range(2..term_size.1 - 2) as f64;
         let radius = rng.gen_range(3..20) as f64;
@@ -282,7 +324,7 @@ fn main() -> Result<(), AppError> {
                 });
             }
             r.replace_drawable_points(anim.id, new_pts);
-            // r.render_drawable(anim.id);
+            r.render_drawable(anim.id);
         }
 
         let frame_duration = start.elapsed();
@@ -301,10 +343,11 @@ fn main() -> Result<(), AppError> {
             frames_since_last = 0;
         }
 
-        //thread::sleep(Duration::from_millis(80));
+        // thread::sleep(Duration::from_millis(80));
 
         r.render_drawable(sprite_video_id);
         r.render_drawable(polygon_id);
+        r.render_drawable(text_id);
 
         r.render_frame();
         r.clear_terminal();

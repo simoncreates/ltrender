@@ -1,24 +1,7 @@
-use crate::draw::{
-    DrawError, SpriteRegistry, UpdateInterval, update_interval_handler::UpdateIntervalType,
-};
+use crate::draw::{DrawError, SpriteRegistry, update_interval_handler::UpdateIntervalCreator};
 
 use ascii_assets::TerminalChar;
-use common_stdx::{Point, Rect};
-use std::collections::HashMap;
-
-pub fn convert_rect_to_update_intervals(rect: Rect<i32>) -> HashMap<i32, Vec<UpdateInterval>> {
-    let mut intervals: HashMap<i32, Vec<UpdateInterval>> = HashMap::new();
-    let iv = (rect.p1.x as usize, rect.p2.x as usize);
-
-    for y in rect.p1.y..rect.p2.y {
-        let intv = UpdateInterval {
-            interval: iv,
-            iv_type: UpdateIntervalType::Optimized,
-        };
-        intervals.entry(y).or_default().push(intv);
-    }
-    intervals
-}
+use common_stdx::Point;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BasicDraw {
@@ -61,29 +44,15 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     ///
     fn draw(&mut self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError>;
 
-    /// Return a map of update intervals keyed by row.
+    /// Return an UpdateIntervalCreator
     ///
-    /// Each entry tells the renderer which horizontal segments of a given
-    /// row need to be refreshed because this object occupies that area.
-    /// Implementations typically call `convert_rect_to_update_intervals` with
-    /// the drawable's bounding rectangle.
+    /// UpdateIntervalCreator`s utility functions shall be used, to create the areas to be updated.
     ///
-    /// ## Example
+    /// if None is returned, a Standard imeplementation will be used, which is very inefficient.
     ///
-    /// ```rust
-    /// let size = sprites
-    ///     .get(&self.sprite_id)
-    ///     .map(|s| s.size())
-    ///     .unwrap_or((0, 0, 0));
-    /// convert_rect_to_update_intervals(Rect {
-    ///     p1: self.position,
-    ///     p2: Point {
-    ///         x: self.position.x + size.1 as u16,
-    ///         y: self.position.y + size.2 as u16,
-    ///     },
-    /// })
-    /// ```
-    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>>;
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
+        None
+    }
 
     /// Return **a new** drawable that has been shifted by the given offset.
     ///

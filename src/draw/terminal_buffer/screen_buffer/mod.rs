@@ -1,8 +1,10 @@
 use crate::draw::{
     DrawError, DrawObject, ObjectId, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
     terminal_buffer::{CharacterInfo, CharacterInfoList},
+    update_interval_handler::UpdateIntervalCreator,
 };
 use common_stdx::Rect;
+use log::info;
 
 use std::{collections::HashMap, fmt::Debug};
 
@@ -36,9 +38,9 @@ pub trait ScreenBufferCore: Sized + Debug {
     fn size(&self) -> (u16, u16);
 
     // helpers
-    /// Merge a map of  intervals into the existing interval set.
-    fn merge_redraw_regions(&mut self, map: HashMap<i32, Vec<UpdateInterval>>) {
-        self.intervals_mut().merge_redraw_regions(map);
+
+    fn merge_creator(&mut self, creator: UpdateIntervalCreator) {
+        self.intervals_mut().merge_creator(creator);
     }
 
     /// Mark the whole screen as dirty
@@ -83,19 +85,23 @@ pub trait ScreenBuffer: ScreenBufferCore {
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError> {
         let drawable = &mut obj.drawable;
-        let map = drawable.bounding_iv(sprites);
-        self.merge_redraw_regions(map);
 
+        let mut draws = drawable.draw(sprites)?;
+
+        let opt_c = drawable.bounding_iv(sprites);
+        _ = self.handle_none_interval_creator(opt_c);
         let size = drawable.size(sprites)?;
-
-        for mut rd in drawable.draw(sprites)? {
+        for rd in draws.iter_mut() {
             for shader in &obj.shaders {
-                shader.apply(&mut rd, (size.0 as usize, size.1 as usize));
+                shader.apply(rd, (size.0 as usize, size.1 as usize));
             }
             if !bounds.contains(rd.pos) {
                 continue;
             }
 
+            if rd.pos.x < 0 || rd.pos.y < 0 {
+                continue;
+            }
             let (buf_cols, buf_rows) = self.size();
             if rd.pos.x as u16 >= buf_cols || rd.pos.y as u16 >= buf_rows {
                 continue;
@@ -117,14 +123,35 @@ pub trait ScreenBuffer: ScreenBufferCore {
     /// Remove an object from the buffer.
     fn remove_from_buffer(&mut self, obj: &DrawObject, obj_id: ObjectId, sprites: &SpriteRegistry) {
         let drawable = &*obj.drawable;
-        let map = drawable.bounding_iv(sprites);
-        self.merge_redraw_regions(map.clone());
+        let opt_c = drawable.bounding_iv(sprites);
 
-        for ci in self.cell_info_mut() {
-            ci.info.remove(&obj_id);
+        let ivs: HashMap<u16, UpdateInterval> = self.handle_none_interval_creator(opt_c);
+        let (buf_cols, buf_rows) = self.size();
+
+        for (row, interval) in ivs.into_iter() {
+            if row >= buf_rows {
+                continue;
+            }
+
+            let (start, end) = interval.interval;
+            let clamped_end = end.min(buf_cols as usize);
+            if start >= clamped_end {
+                continue;
+            }
+
+            for x in start..clamped_end {
+                let pos = Point {
+                    x: x as i32,
+                    y: row as i32,
+                };
+                let idx = self.idx_of(pos);
+                self.cell_info_mut()[idx].info.remove(&obj_id);
+            }
         }
     }
+
     fn update_terminal(&mut self, expand: usize) -> Result<(), DrawError> {
+        self.intervals_mut().invalidate_entire_screen();
         self.intervals_mut().expand_regions(expand);
         self.intervals_mut().merge_intervals();
         let intervals = self.intervals_mut().dump_intervals();
@@ -218,5 +245,26 @@ pub trait ScreenBuffer: ScreenBufferCore {
 
     fn idx_of(&self, pos: Point<i32>) -> usize {
         (pos.y as usize) * self.size().0 as usize + pos.x as usize
+    }
+
+    fn handle_none_interval_creator(
+        &mut self,
+        opt_c: Option<UpdateIntervalCreator>,
+    ) -> HashMap<u16, UpdateInterval> {
+        if let Some(mut c) = opt_c {
+            self.merge_creator(c.clone());
+            c.dump_intervals()
+        } else {
+            let mut c = UpdateIntervalCreator::new();
+            c.register_redraw_region(Rect {
+                p1: Point { x: 0, y: 0 },
+                p2: Point {
+                    x: self.size().0 as i32,
+                    y: self.size().1 as i32,
+                },
+            });
+            self.merge_creator(c.clone());
+            c.dump_intervals()
+        }
     }
 }

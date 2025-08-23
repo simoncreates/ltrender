@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use crate::draw::{
-    DrawError, SpriteRegistry, UpdateInterval,
+    DrawError, SpriteRegistry,
     terminal_buffer::{
         Drawable,
         drawable::{BasicDraw, DoublePointed},
     },
-    update_interval_handler::UpdateIntervalType,
+    update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
@@ -94,40 +92,27 @@ impl Drawable for CircleDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
-        let mut intervals: HashMap<i32, Vec<UpdateInterval>> = HashMap::new();
-        let r = self.radius as usize;
-        let center = Point {
-            x: self.center.x as usize,
-            y: self.center.y as usize,
-        };
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
+        let mut c = UpdateIntervalCreator::new();
 
-        fn push_interval(
-            map: &mut HashMap<i32, Vec<UpdateInterval>>,
-            y: usize,
-            start: usize,
-            end_exclusive: usize,
-        ) {
-            if start < end_exclusive {
-                map.entry(y as i32).or_default().push(UpdateInterval {
-                    interval: (start, end_exclusive),
-                    iv_type: UpdateIntervalType::Optimized,
-                });
-            }
-        }
+        let r = self.radius as i32;
+        let center = Point {
+            x: self.center.x,
+            y: self.center.y,
+        };
 
         for dy in 0..=2 * r {
             let y = center.y + dy.saturating_sub(r);
-            let dist_y = (dy as i32 - r as i32).pow(2);
-            if (r as i32).pow(2) >= dist_y {
-                let dx = (((r * r) as i32 - dist_y) as f64).sqrt() as usize;
+            let dist_y = (dy - r).pow(2);
+            if r.pow(2) >= dist_y {
+                let dx = (((r * r) - dist_y) as f64).sqrt() as i32;
                 let start = center.x.saturating_sub(dx);
                 let end = center.x + dx + 1;
-                push_interval(&mut intervals, y, start, end);
+                c.add_interval(y, (start, end));
             }
         }
 
-        intervals
+        Some(c)
     }
 
     fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {

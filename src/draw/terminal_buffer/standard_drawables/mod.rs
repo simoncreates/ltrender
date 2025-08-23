@@ -10,3 +10,5 @@ pub mod circle_drawable;
 pub use circle_drawable::CircleDrawable;
 pub mod videostream_drawable;
 pub use videostream_drawable::VideoStreamDrawable;
+pub mod text_drawable;
+pub use text_drawable::TextDrawable;

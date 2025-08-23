@@ -8,7 +8,7 @@ use crate::draw::{
         Drawable,
         drawable::{BasicDraw, MultiPointed},
     },
-    update_interval_handler::UpdateIntervalType,
+    update_interval_handler::UpdateIntervalCreator,
 };
 
 #[derive(Debug, Clone)]
@@ -119,17 +119,17 @@ fn compute_scanline_intervals(points: &[Point<i32>]) -> IvHashMap {
         }
         xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        let mut row: Vec<(u16, u16)> = Vec::new();
+        let mut row: Vec<(i32, i32)> = Vec::new();
         for pair in xs.chunks(2) {
             if pair.len() != 2 {
                 break;
             }
             let start = pair[0].ceil() as i32;
             let end = pair[1].floor() as i32;
-            if end <= start {
+            if end < start {
                 continue;
             }
-            row.push((start as u16, end as u16));
+            row.push((start, end));
         }
 
         if !row.is_empty() {
@@ -140,7 +140,7 @@ fn compute_scanline_intervals(points: &[Point<i32>]) -> IvHashMap {
     intervals
 }
 
-type IvHashMap = HashMap<i32, Vec<(u16, u16)>>;
+type IvHashMap = HashMap<i32, Vec<(i32, i32)>>;
 
 /// Compute both border_set (pixel positions) and bounding intervals
 /// - border_set: for skipping border pixels during fill
@@ -168,15 +168,13 @@ fn compute_border_and_bounding(points: &[Point<i32>]) -> (HashSet<Point<i32>>, I
 
     let mut ivs: IvHashMap = HashMap::new();
     for y in ys {
-        let mut ints: Vec<(u16, u16)> = Vec::new();
-
+        let mut ints: Vec<(i32, i32)> = Vec::new();
         if let Some(row) = fill_map.remove(&y) {
             ints.extend(row);
         }
-
         if let Some(bxs) = border_map.get(&y) {
             for &x in bxs {
-                ints.push((x as u16, x as u16));
+                ints.push((x, x));
             }
         }
 
@@ -231,7 +229,7 @@ impl Drawable for PolygonDrawable {
                 high_y = p.y
             }
         }
-        let size = ((high_x - low_x) as u16, (high_y - low_y) as u16);
+        let size = ((high_x - low_x + 1) as u16, (high_y - low_y + 1) as u16);
 
         Ok(size)
     }
@@ -279,7 +277,7 @@ impl Drawable for PolygonDrawable {
         for (y, row_intervals) in compute_scanline_intervals(&self.points) {
             for (start, end) in row_intervals {
                 for x in start..=end {
-                    let pos = Point { x: x as i32, y };
+                    let pos = Point { x, y };
                     if border_set.contains(&pos) {
                         continue;
                     }
@@ -291,29 +289,25 @@ impl Drawable for PolygonDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(
-        &self,
-        _: &crate::draw::SpriteRegistry,
-    ) -> std::collections::HashMap<i32, Vec<crate::draw::UpdateInterval>> {
-        let mut intervals: HashMap<i32, Vec<crate::draw::UpdateInterval>> = HashMap::new();
-
+    fn bounding_iv(&self, _: &crate::draw::SpriteRegistry) -> Option<UpdateIntervalCreator> {
+        let mut c = UpdateIntervalCreator::new();
         if self.points.is_empty() {
-            return intervals;
+            return Some(c);
         }
 
         let (_border_set, merged_bounding) = compute_border_and_bounding(&self.points);
 
-        for (y, row_intervals) in merged_bounding {
-            let ivs = row_intervals
-                .into_iter()
-                .map(|(start, end)| crate::draw::UpdateInterval {
-                    interval: (start as usize, end as usize),
-                    iv_type: UpdateIntervalType::Optimized,
-                })
-                .collect();
-            intervals.insert(y, ivs);
+        if merged_bounding.is_empty() {
+            return Some(c);
         }
 
-        intervals
+        for (y, row_intervals) in merged_bounding {
+            for (start, end_inclusive) in row_intervals {
+                let end_exclusive = end_inclusive.saturating_add(1);
+                c.add_interval(y, (start, end_exclusive));
+            }
+        }
+
+        Some(c)
     }
 }

@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use crate::draw::{
-    DrawError, SpriteRegistry, UpdateInterval,
+    DrawError, SpriteRegistry,
     terminal_buffer::{
         Drawable,
-        drawable::{BasicDraw, DoublePointed, convert_rect_to_update_intervals},
+        drawable::{BasicDraw, DoublePointed},
     },
-    update_interval_handler::UpdateIntervalType,
+    update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
@@ -89,14 +87,15 @@ impl Drawable for RectDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, _sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
+        let mut c = UpdateIntervalCreator::new();
         if self.border_thickness == 0 {
-            return HashMap::new();
+            return Some(c);
         }
 
         if self.fill_style.is_some() {
             let rect = self.rect;
-            return convert_rect_to_update_intervals(Rect {
+            c.register_redraw_region(Rect {
                 p1: Point {
                     x: rect.p1.x,
                     y: rect.p1.y,
@@ -106,24 +105,8 @@ impl Drawable for RectDrawable {
                     y: rect.p2.y.saturating_add(1),
                 },
             });
+            return Some(c);
         }
-
-        let mut intervals = HashMap::new();
-
-        fn push_interval(
-            map: &mut HashMap<i32, Vec<UpdateInterval>>,
-            y: i32,
-            start: usize,
-            end_exclusive: usize,
-        ) {
-            if start < end_exclusive {
-                map.entry(y).or_default().push(UpdateInterval {
-                    interval: (start, end_exclusive),
-                    iv_type: UpdateIntervalType::Optimized,
-                });
-            }
-        }
-
         let t = self.border_thickness;
         let rect = self.rect;
         for y in rect.p1.y..=rect.p2.y {
@@ -131,34 +114,28 @@ impl Drawable for RectDrawable {
             let is_bottom = y > rect.p2.y - t as i32;
 
             if is_top || is_bottom {
-                push_interval(
-                    &mut intervals,
-                    y,
-                    rect.p1.x as usize,
-                    rect.p2.x.saturating_add(1) as usize,
-                );
+                c.add_interval(y, (rect.p1.x, rect.p2.x.saturating_add(1)));
                 continue;
             }
 
-            let left_start = rect.p1.x as usize;
-            let left_end = (rect.p1.x + t as i32).min(rect.p2.x.saturating_add(1)) as usize;
+            let left_start = rect.p1.x;
+            let left_end = (rect.p1.x + t as i32).min(rect.p2.x.saturating_add(1));
 
             let right_start_opt = rect.p2.x.checked_sub(t as i32 - 1);
             if let Some(right_start) = right_start_opt {
-                let right_start = right_start as usize;
-                let right_end = rect.p2.x.saturating_add(1) as usize;
+                let right_end = rect.p2.x.saturating_add(1);
                 if left_start < right_start {
-                    push_interval(&mut intervals, y, left_start, left_end);
-                    push_interval(&mut intervals, y, right_start, right_end);
+                    c.add_interval(y, (left_start, left_end));
+                    c.add_interval(y, (right_start, right_end));
                 } else {
                     let start = left_start.min(right_start);
                     let end = left_end.max(right_end);
-                    push_interval(&mut intervals, y, start, end);
+                    c.add_interval(y, (start, end));
                 }
             }
         }
 
-        intervals
+        Some(c)
     }
 
     fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {

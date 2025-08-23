@@ -10,14 +10,12 @@ use crate::draw::{
     error::AppError, renderer::RenderMode,
 };
 
-/// Cloneable handle used by callers to send commands to the renderer thread.
 #[derive(Clone, Debug)]
 pub struct RendererHandle {
     tx: mpsc::SyncSender<RendererCommand>,
 }
 
 impl RendererHandle {
-    /// The methods previously on RendererHandle stay here -- they just send commands.
     pub fn set_update_interval(&self, amount: usize) {
         let _ = self.tx.send(RendererCommand::SetUpdateInterval(amount));
     }
@@ -75,24 +73,18 @@ impl RendererHandle {
     pub fn handle_resize(&self, new_size: (u16, u16)) {
         let _ = self.tx.send(RendererCommand::HandleResize(new_size));
     }
-
-    // add other convenience wrappers as needed...
 }
 
-/// Manager that *owns* the renderer thread. Non-cloneable. Responsible for shutdown/join.
 pub struct RendererManager {
     tx: mpsc::SyncSender<RendererCommand>,
     handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl RendererManager {
-    /// Create a new renderer manager and a cloneable handle.
-    /// Returns (manager, handle).
     pub fn new<B: ScreenBuffer + 'static>(
         size: (u16, u16),
         buffer_size: usize,
     ) -> (Self, RendererHandle) {
-        // bounded channel
         let (tx, rx) = mpsc::sync_channel(buffer_size);
         let join_handle = run_renderer::<B>(size, rx);
 
@@ -104,9 +96,7 @@ impl RendererManager {
         (manager, handle)
     }
 
-    /// Stop the renderer and join the thread. Consumes self.
     pub fn stop(mut self) {
-        // Best-effort stop
         let _ = self.tx.send(RendererCommand::Stop);
         if let Some(h) = self.handle.take() {
             let _ = h.join();
@@ -116,8 +106,6 @@ impl RendererManager {
 
 impl Drop for RendererManager {
     fn drop(&mut self) {
-        // Best-effort stop if user forgot to call stop().
-        // We attempt to send Stop, then join the thread. This is synchronous and may block.
         let _ = self.tx.send(RendererCommand::Stop);
         if let Some(h) = self.handle.take() {
             let _ = h.join();

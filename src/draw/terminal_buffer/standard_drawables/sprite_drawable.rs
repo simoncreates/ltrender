@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-
 use common_stdx::{Point, Rect};
 
 use crate::draw::{
-    DrawError, SpriteEntry, SpriteId, SpriteRegistry, UpdateInterval,
+    DrawError, SpriteEntry, SpriteId, SpriteRegistry,
     terminal_buffer::{
         Drawable,
-        drawable::{BasicDraw, SinglePointed, convert_rect_to_update_intervals},
+        drawable::{BasicDraw, SinglePointed},
     },
+    update_interval_handler::UpdateIntervalCreator,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -197,18 +196,20 @@ impl Drawable for SpriteDrawable {
         Ok(out)
     }
 
-    fn bounding_iv(&self, sprites: &SpriteRegistry) -> HashMap<i32, Vec<UpdateInterval>> {
+    fn bounding_iv(&self, sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
         let size = sprites
             .get(&self.sprite_id)
             .map(|s| s.size())
             .unwrap_or((0, 0, 0));
-        convert_rect_to_update_intervals(Rect {
+        let mut c = UpdateIntervalCreator::new();
+        c.register_redraw_region(Rect {
             p1: self.position,
             p2: Point {
                 x: self.position.x + size.1 as i32,
                 y: self.position.y + size.2 as i32,
             },
-        })
+        });
+        Some(c)
     }
 
     fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
