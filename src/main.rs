@@ -3,16 +3,17 @@ use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, poll, read};
 use crossterm::terminal::size;
 use env_logger::Builder;
-use flume::Sender;
 use log::info;
 use rand::Rng as _;
 use std::fs::File;
 use std::io::Write;
+use std::sync::mpsc::{Sender, SyncSender};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::draw::draw_object_builder::SpriteDrawableBuilder;
 use crate::draw::draw_object_builder::videostream_drawable_builder::make_videostream_drawable;
+use crate::draw::drawable_register::ObjectLifetime;
 use crate::draw::error::AppError;
 use crate::draw::renderer::RendererHandle;
 use crate::draw::renderer::render_handle::RendererManager;
@@ -71,7 +72,7 @@ fn create_frame(width: u16, height: u16, tick: usize) -> Vec<Option<TerminalChar
 }
 
 fn spawn_frame_sender(
-    sender: Sender<StreamFrame>,
+    sender: SyncSender<StreamFrame>,
     render_handle: RendererHandle,
     drawobjectkey: DrawObjectKey,
 ) {
@@ -141,17 +142,18 @@ fn main() -> Result<(), AppError> {
     let sprite_id =
         r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())?;
 
-    // let (sender, drawable) = make_videostream_drawable((10, 10))?;
+    let (sender, drawable) = make_videostream_drawable((10, 10), 1)?;
 
-    // let videostream_id = DrawObjectBuilder::default()
-    //     .layer(8000)
-    //     .screen(screen_id)
-    //     .drawable(drawable)
-    //     .shader(FlipVertical)
-    //     .shader(FlipHorizontal)
-    //     .build(&mut r)?;
+    let videostream_id = DrawObjectBuilder::default()
+        .layer(8000)
+        .screen(screen_id)
+        .drawable(drawable)
+        .shader(FlipVertical)
+        .shader(FlipHorizontal)
+        .add_lifetime(ObjectLifetime::ExplicitRemove)
+        .build(&mut r)?;
 
-    // spawn_frame_sender(sender, r.clone(), videostream_id);
+    spawn_frame_sender(sender, r.clone(), videostream_id);
 
     let video_drawable = SpriteDrawableBuilder::default()
         .sprite_id(sprite_id)
@@ -170,6 +172,7 @@ fn main() -> Result<(), AppError> {
         .drawable(video_drawable)
         .shader(FlipHorizontal)
         .shader(Grayscale)
+        .add_lifetime(ObjectLifetime::RemoveNextFrame)
         .build(&mut r)?;
 
     let text_drawable = Box::new(text_drawable::TextDrawable {
@@ -235,6 +238,7 @@ fn main() -> Result<(), AppError> {
         .layer(34095803498)
         .screen(screen_id)
         .drawable(text_drawable)
+        .add_lifetime(ObjectLifetime::RemoveNextFrame)
         .build(&mut r)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
@@ -265,6 +269,8 @@ fn main() -> Result<(), AppError> {
                 fill_style: Some(fill_style),
                 border_style,
             }),
+            lifetime: ObjectLifetime::ExplicitRemove,
+            creation_time: Instant::now(),
         };
         let poly_id = r.register_drawable(screen_id, obj)?;
 
@@ -361,13 +367,11 @@ fn main() -> Result<(), AppError> {
             last_report = Instant::now();
             frames_since_last = 0;
         }
-
         r.render_drawable(sprite_video_id);
         r.render_drawable(text_id);
 
         r.render_frame();
-
-        // r.clear_terminal();
+        r.clear_terminal();
     }
 
     manager.stop();

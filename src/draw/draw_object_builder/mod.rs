@@ -1,5 +1,8 @@
+use std::time::Instant;
+
 use crate::draw::{
     DrawObject, DrawObjectKey, ScreenKey,
+    drawable_register::ObjectLifetime,
     error::{AppError, DrawObjectBuilderError},
     renderer::RendererHandle,
     terminal_buffer::{Drawable, screen_buffer::Shader},
@@ -69,19 +72,13 @@ pub struct DrawObjectBuilder {
     shaders: Vec<Box<dyn Shader>>,
     drawable: Option<Box<dyn Drawable>>,
     screen_id: Option<ScreenKey>,
+    lt: Option<ObjectLifetime>,
 }
 
 impl DrawObjectBuilder {
-    pub fn new() -> Self {
-        Self {
-            layer: None,
-            shaders: Vec::new(),
-            drawable: None,
-            screen_id: None,
-        }
-    }
     handle_field!(layer, layer, usize);
     handle_field!(screen, screen_id, usize);
+    handle_field!(add_lifetime, lt, ObjectLifetime);
     pub fn shader<T>(&mut self, shader: T) -> &mut Self
     where
         T: Shader + 'static,
@@ -102,25 +99,31 @@ impl DrawObjectBuilder {
     allow_drawable_building!(RectDrawableBuilder, rect_drawable);
     allow_drawable_building!(VideoStreamDrawableBuilder, videostream_drawable);
 
-    pub fn build(&self, render_handle: &mut RendererHandle) -> Result<DrawObjectKey, AppError> {
+    pub fn build(&mut self, render_handle: &mut RendererHandle) -> Result<DrawObjectKey, AppError> {
         let layer = self.layer.ok_or(DrawObjectBuilderError::NoLayerAdded())?;
-
         let screen_id = self
             .screen_id
             .ok_or(DrawObjectBuilderError::NoScreenAdded())?;
 
         let drawable = self
             .drawable
-            .as_ref()
+            .take()
             .ok_or(DrawObjectBuilderError::NoDrawableAdded())?;
+
+        let lifetime = self
+            .lt
+            .take()
+            .ok_or(DrawObjectBuilderError::NoLifetimeAdded())?;
 
         render_handle
             .register_drawable(
                 screen_id,
                 DrawObject {
+                    lifetime,
                     layer,
-                    drawable: drawable.clone_box(),
+                    drawable,
                     shaders: self.shaders.clone(),
+                    creation_time: Instant::now(),
                 },
             )
             .map_err(AppError::from)

@@ -2,7 +2,10 @@ use crate::draw::{
     ObjectId, ScreenKey,
     terminal_buffer::{Drawable, screen_buffer::Shader},
 };
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct DrawObjectKey {
@@ -10,14 +13,24 @@ pub struct DrawObjectKey {
     pub object_id: ObjectId,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+
+pub enum ObjectLifetime {
+    RemoveNextFrame,
+    ExplicitRemove,
+    ForTime(Duration),
+}
+
+#[derive(Debug)]
 pub struct DrawObject {
+    pub lifetime: ObjectLifetime,
+    pub creation_time: Instant,
     pub layer: usize,
     pub shaders: Vec<Box<dyn Shader>>,
     pub drawable: Box<dyn Drawable + 'static>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct DrawObjectLibrary {
     pub all_objects: HashMap<DrawObjectKey, DrawObject>,
 }

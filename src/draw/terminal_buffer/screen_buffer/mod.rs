@@ -1,6 +1,6 @@
 use crate::draw::{
     DrawError, DrawObject, ObjectId, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
-    terminal_buffer::{CharacterInfo, CharacterInfoList},
+    terminal_buffer::{CharacterInfo, CharacterInfoList, drawable::BasicDraw},
     update_interval_handler::UpdateIntervalCreator,
 };
 use common_stdx::Rect;
@@ -85,10 +85,10 @@ pub trait ScreenBuffer: ScreenBufferCore {
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError> {
         let drawable = &mut obj.drawable;
-        info!("Adding obj_id {} to buffer", obj_id,);
 
         let mut draws = drawable.draw(sprites)?;
 
+        // TODO: make this only necessary, if a shader is applied, that requires the top left corner
         let top_left = if let Some(corner) = drawable.get_top_left() {
             corner
         } else {
@@ -96,11 +96,17 @@ pub trait ScreenBuffer: ScreenBufferCore {
         };
 
         let opt_c = drawable.bounding_iv(sprites);
-        _ = self.handle_none_interval_creator(opt_c);
+        // TODO: is this right??
+        _ = self.handle_none_interval_creator(opt_c, bounds.p1);
         let size = drawable.size(sprites)?;
-        for rd in draws.iter_mut() {
+        for unshifted_bd in draws.iter_mut() {
+            // using the top left corner of the screen, to shift the drawables position on screen
+            let mut rd = BasicDraw {
+                pos: unshifted_bd.pos + bounds.p1,
+                chr: unshifted_bd.chr,
+            };
             for shader in &obj.shaders {
-                shader.apply(rd, (size.0 as usize, size.1 as usize), top_left);
+                shader.apply(&mut rd, (size.0 as usize, size.1 as usize), top_left);
             }
             if !bounds.contains(rd.pos) {
                 continue;
@@ -128,36 +134,40 @@ pub trait ScreenBuffer: ScreenBufferCore {
     }
 
     /// Remove an object from the buffer.
-    fn remove_from_buffer(&mut self, obj: &DrawObject, obj_id: ObjectId, sprites: &SpriteRegistry) {
+    fn remove_from_buffer(
+        &mut self,
+        obj: &DrawObject,
+        obj_id: ObjectId,
+        sprites: &SpriteRegistry,
+        bounds: &Rect<i32>,
+    ) {
         let drawable = &*obj.drawable;
         let opt_c = drawable.bounding_iv(sprites);
 
-        let ivs: HashMap<u16, UpdateInterval> = self.handle_none_interval_creator(opt_c);
+        let ivs: HashMap<u16, Vec<UpdateInterval>> =
+            self.handle_none_interval_creator(opt_c, bounds.p1);
         let (buf_cols, buf_rows) = self.size();
 
-        info!(
-            "Removing obj_id {} , with intervals: {:#?} and drawable {:#?}",
-            obj_id, ivs, obj.drawable
-        );
-
-        for (row, interval) in ivs.into_iter() {
+        for (row, iv_list) in ivs.into_iter() {
             if row >= buf_rows {
                 continue;
             }
 
-            let (start, end) = interval.interval;
-            let clamped_end = end.min(buf_cols as usize);
-            if start >= clamped_end {
-                continue;
-            }
+            for iv in iv_list {
+                let (start, end) = iv.interval;
+                let clamped_end = end.min(buf_cols as usize);
+                if start >= clamped_end {
+                    continue;
+                }
 
-            for x in start..clamped_end {
-                let pos = Point {
-                    x: x as i32,
-                    y: row as i32,
-                };
-                let idx = self.idx_of(pos);
-                self.cell_info_mut()[idx].info.remove(&obj_id);
+                for x in start..clamped_end {
+                    let pos = Point {
+                        x: x as i32,
+                        y: row as i32,
+                    };
+                    let idx = self.idx_of(pos);
+                    self.cell_info_mut()[idx].info.remove(&obj_id);
+                }
             }
         }
     }
@@ -261,8 +271,10 @@ pub trait ScreenBuffer: ScreenBufferCore {
     fn handle_none_interval_creator(
         &mut self,
         opt_c: Option<UpdateIntervalCreator>,
-    ) -> HashMap<u16, UpdateInterval> {
+        shift_amount: Point<i32>,
+    ) -> HashMap<u16, Vec<UpdateInterval>> {
         if let Some(mut c) = opt_c {
+            c.shift_all_intervals_by(shift_amount);
             self.merge_creator(c.clone());
             c.dump_intervals()
         } else {

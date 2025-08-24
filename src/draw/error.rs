@@ -71,6 +71,9 @@ pub enum DrawObjectBuilderError {
     #[error("No screen ID added to the object")]
     NoScreenAdded(),
 
+    #[error("No no lifetime added to the object")]
+    NoLifetimeAdded(),
+
     #[error("Failed to build the sprite object")]
     FailedToBuildSpriteObject(),
 

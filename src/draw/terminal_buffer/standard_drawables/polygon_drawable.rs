@@ -240,15 +240,6 @@ impl Drawable for PolygonDrawable {
         Some(self)
     }
 
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
-        let new_points = self.points.iter().map(|p| *p + offset).collect();
-        Box::new(PolygonDrawable {
-            points: new_points,
-            border_style: self.border_style,
-            fill_style: self.fill_style,
-        })
-    }
-
     fn draw(
         &mut self,
         _: &crate::draw::SpriteRegistry,

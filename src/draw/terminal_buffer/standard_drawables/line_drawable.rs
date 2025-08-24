@@ -105,12 +105,4 @@ impl Drawable for LineDrawable {
         });
         Some(c)
     }
-
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
-        Box::new(LineDrawable {
-            start: self.start + offset,
-            end: self.end + offset,
-            chr: self.chr,
-        })
-    }
 }

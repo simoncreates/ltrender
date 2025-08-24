@@ -1,6 +1,7 @@
 use std::{
     sync::mpsc::{self, Receiver},
     thread,
+    time::{Duration, Instant},
 };
 
 use common_stdx::{Point, Rect};
@@ -85,6 +86,10 @@ impl RendererHandle {
         let _ = self.tx.send(RendererCommand::ClearTerminal);
     }
 
+    pub fn check_if_object_lifetime_ended(&self) {
+        let _ = self.tx.send(RendererCommand::CheckIfObjectLifetimeEnded());
+    }
+
     pub fn handle_resize(&self, new_size: (u16, u16)) {
         let _ = self.tx.send(RendererCommand::HandleResize(new_size));
     }
@@ -137,6 +142,9 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
 
         while let Ok(cmd) = rx.recv() {
             match cmd {
+                RendererCommand::CheckIfObjectLifetimeEnded() => {
+                    let _ = r.check_if_object_lifetime_ended();
+                }
                 RendererCommand::SetRenderMode(mode) => {
                     r.set_render_mode(mode);
                 }
@@ -166,9 +174,6 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
                 }
                 RendererCommand::RenderDrawable(id) => {
                     let _ = r.render_drawable(id);
-                }
-                RendererCommand::ReplaceDrawable(id, obj) => {
-                    let _ = r.replace_drawable(id, obj);
                 }
                 RendererCommand::ReplaceDrawablePoints(id, pts) => {
                     let _ = r.replace_drawable_points(id, pts);
@@ -207,6 +212,7 @@ pub enum RendererCommand {
     CreateScreen(Rect<i32>, usize, std::sync::mpsc::Sender<ScreenKey>),
     ChangeScreenArea(ScreenKey, Rect<i32>),
     ChangeScreenLayer(ScreenKey, usize),
+    CheckIfObjectLifetimeEnded(),
     RegisterDrawable(
         ScreenKey,
         DrawObject,
@@ -215,7 +221,6 @@ pub enum RendererCommand {
     RemoveDrawable(DrawObjectKey),
     RegisterSpriteFromSource(String, std::sync::mpsc::Sender<Result<SpriteId, AppError>>),
     RenderDrawable(DrawObjectKey),
-    ReplaceDrawable(DrawObjectKey, DrawObject),
     ReplaceDrawablePoints(DrawObjectKey, Vec<Point<i32>>),
     MoveDrawableTo(DrawObjectKey, Point<i32>),
     MoveDrawableBy(DrawObjectKey, i32, i32),

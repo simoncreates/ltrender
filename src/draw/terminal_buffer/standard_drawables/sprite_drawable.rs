@@ -211,13 +211,4 @@ impl Drawable for SpriteDrawable {
         });
         Some(c)
     }
-
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
-        Box::new(SpriteDrawable {
-            position: self.position + offset,
-            sprite_id: self.sprite_id,
-            last_state_change: self.last_state_change,
-            animation_type: self.animation_type.clone(),
-        })
-    }
 }

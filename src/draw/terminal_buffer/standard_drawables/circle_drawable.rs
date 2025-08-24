@@ -114,16 +114,4 @@ impl Drawable for CircleDrawable {
 
         Some(c)
     }
-
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
-        Box::new(CircleDrawable {
-            center: Point {
-                x: self.center.x + offset.x,
-                y: self.center.y + offset.y,
-            },
-            radius: self.radius,
-            border_style: self.border_style,
-            fill_style: self.fill_style,
-        })
-    }
 }

@@ -33,7 +33,7 @@ impl UpdateIntervalHandler {
         let width = self.width as usize;
         let height = self.height as usize;
 
-        for (y, iv) in creator.intervals.into_iter() {
+        for (y, iv_list) in creator.intervals.into_iter() {
             let y_usize = y as usize;
 
             // skip rows outside viewport
@@ -46,22 +46,24 @@ impl UpdateIntervalHandler {
                 None => continue,
             };
 
-            let (x1, x2) = iv.interval;
+            for iv in iv_list {
+                let (x1, x2) = iv.interval;
 
-            let start_x = x1.min(width);
-            let end_x = x2.min(width);
+                let start_x = x1.min(width);
+                let end_x = x2.min(width);
 
-            if start_x >= end_x {
-                continue;
+                if start_x >= end_x {
+                    continue;
+                }
+
+                let start = y_offset + start_x;
+                let end = y_offset + end_x;
+
+                self.intervals.push(UpdateInterval {
+                    interval: (start, end),
+                    iv_type: iv.iv_type,
+                });
             }
-
-            let start = y_offset + start_x;
-            let end = y_offset + end_x;
-
-            self.intervals.push(UpdateInterval {
-                interval: (start, end),
-                iv_type: iv.iv_type,
-            });
         }
     }
 

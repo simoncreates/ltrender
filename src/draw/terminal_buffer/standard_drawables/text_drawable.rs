@@ -168,22 +168,4 @@ impl Drawable for TextDrawable {
         c.register_redraw_region(self.area);
         Some(c)
     }
-
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
-        Box::new(TextDrawable {
-            area: Rect {
-                p1: Point {
-                    x: self.area.p1.x + offset.x,
-                    y: self.area.p1.y + offset.y,
-                },
-                p2: Point {
-                    x: self.area.p2.x + offset.x,
-                    y: self.area.p2.y + offset.y,
-                },
-            },
-            lines: self.lines.clone(),
-            wrapping: self.wrapping,
-            scroll_y: self.scroll_y,
-        })
-    }
 }

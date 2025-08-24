@@ -1,5 +1,6 @@
+use std::sync::mpsc::{self, Receiver, Sender};
+
 use common_stdx::Point;
-use flume::{Receiver, Sender};
 
 use crate::draw::{
     error::DrawObjectBuilderError,
@@ -43,17 +44,18 @@ impl VideoStreamDrawableBuilder {
 
 pub fn make_videostream_drawable(
     position: impl Into<Point<i32>>,
+    max_bounds: usize,
 ) -> Result<
     (
-        Sender<StreamFrame>,
+        mpsc::SyncSender<StreamFrame>,
         Box<dyn crate::draw::terminal_buffer::Drawable>,
     ),
     crate::draw::error::DrawObjectBuilderError,
 > {
-    let (sender, receiver) = flume::unbounded::<StreamFrame>();
+    let (sender, receiver) = mpsc::sync_channel::<StreamFrame>(max_bounds);
 
     let drawable = VideoStreamDrawableBuilder::new()
-        .recv(receiver.clone())
+        .recv(receiver)
         .position(position)
         .build()?;
 

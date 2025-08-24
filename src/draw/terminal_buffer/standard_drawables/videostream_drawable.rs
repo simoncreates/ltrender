@@ -1,3 +1,5 @@
+use std::sync::mpsc::{Receiver, TryRecvError};
+
 use crate::draw::{
     DrawError, SpriteRegistry,
     terminal_buffer::{
@@ -8,7 +10,6 @@ use crate::draw::{
 };
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
-use flume::{Receiver, TryRecvError};
 
 #[derive(Debug, Clone)]
 pub struct StreamFrame {
@@ -16,7 +17,7 @@ pub struct StreamFrame {
     pub data: Vec<Option<TerminalChar>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct VideoStreamDrawable {
     pub position: Point<i32>,
     pub receiver: Receiver<StreamFrame>,
@@ -93,13 +94,5 @@ impl Drawable for VideoStreamDrawable {
 
         c.register_redraw_region(rect);
         Some(c)
-    }
-
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
-        Box::new(VideoStreamDrawable {
-            position: self.position + offset,
-            receiver: self.receiver.clone(),
-            size: self.size,
-        })
     }
 }

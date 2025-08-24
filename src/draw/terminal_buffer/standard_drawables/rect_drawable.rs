@@ -137,22 +137,4 @@ impl Drawable for RectDrawable {
 
         Some(c)
     }
-
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable> {
-        Box::new(RectDrawable {
-            rect: Rect {
-                p1: Point {
-                    x: self.rect.p1.x + offset.x,
-                    y: self.rect.p1.y + offset.y,
-                },
-                p2: Point {
-                    x: self.rect.p2.x + offset.x,
-                    y: self.rect.p2.y + offset.y,
-                },
-            },
-            border_thickness: self.border_thickness,
-            border_style: self.border_style,
-            fill_style: self.fill_style,
-        })
-    }
 }

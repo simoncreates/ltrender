@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use common_stdx::Rect;
+use common_stdx::{Point, Rect};
 
 use crate::draw::{UpdateInterval, update_interval_handler::UpdateIntervalType};
 
@@ -8,7 +8,7 @@ use crate::draw::{UpdateInterval, update_interval_handler::UpdateIntervalType};
 /// and later merge them into UpdateIntervalHandler
 #[derive(Debug, Default, Clone)]
 pub struct UpdateIntervalCreator {
-    pub intervals: HashMap<u16, UpdateInterval>,
+    pub intervals: HashMap<u16, Vec<UpdateInterval>>,
 }
 
 impl UpdateIntervalCreator {
@@ -41,13 +41,11 @@ impl UpdateIntervalCreator {
             let start_x = rect_u16.p1.x;
             let end_x = rect_u16.p2.x.saturating_add(1);
 
-            let entry = self.intervals.entry(y).or_insert(UpdateInterval {
+            let intervals = self.intervals.entry(y).or_default();
+            intervals.push(UpdateInterval {
                 interval: (start_x as usize, end_x as usize),
                 iv_type: UpdateIntervalType::Optimized,
             });
-
-            entry.interval.0 = entry.interval.0.min(start_x as usize);
-            entry.interval.1 = entry.interval.1.max(end_x as usize);
         }
     }
 
@@ -58,17 +56,14 @@ impl UpdateIntervalCreator {
     /// - intervals are normalized (start <= end).
     pub fn add_interval(&mut self, y: i32, interval: (i32, i32)) {
         if y < 0 {
-            // out of bounds in y, ignore
             return;
         }
         let y = y as u16;
 
-        // safe conversion helper: clamp negatives to 0 and saturate to usize::MAX
         fn i32_to_usize_clamped(x: i32) -> usize {
             if x <= 0 {
                 0usize
             } else {
-                // use i128 to compare against usize::MAX safely on all platforms
                 let xi = x as i128;
                 let umax_i128 = usize::MAX as i128;
                 if xi > umax_i128 {
@@ -82,21 +77,53 @@ impl UpdateIntervalCreator {
         let mut start = i32_to_usize_clamped(interval.0);
         let mut end = i32_to_usize_clamped(interval.1);
 
-        // normalize interval so start <= end
         if start > end {
             core::mem::swap(&mut start, &mut end);
         }
 
-        let entry = self.intervals.entry(y).or_insert(UpdateInterval {
+        let intervals = self.intervals.entry(y).or_default();
+        intervals.push(UpdateInterval {
             interval: (start, end),
             iv_type: UpdateIntervalType::Optimized,
         });
-
-        entry.interval.0 = entry.interval.0.min(start);
-        entry.interval.1 = entry.interval.1.max(end);
     }
 
-    pub fn dump_intervals(&mut self) -> HashMap<u16, UpdateInterval> {
+    /// Shift all intervals by the given amount.
+    /// This rebuilds the HashMap since y-values may change.
+    pub fn shift_all_intervals_by(&mut self, shift_amount: Point<i32>) {
+        let mut new_map: HashMap<u16, Vec<UpdateInterval>> = HashMap::new();
+        let usize_max_i128 = usize::MAX as i128;
+
+        for (y, iv_list) in self.intervals.drain() {
+            let new_y_i32 = y as i32 + shift_amount.y;
+            if new_y_i32 < 0 {
+                continue;
+            }
+            let new_y = new_y_i32.min(u16::MAX as i32) as u16;
+
+            for mut iv in iv_list {
+                let mut start_i128 = iv.interval.0 as i128 + shift_amount.x as i128;
+                let mut end_i128 = iv.interval.1 as i128 + shift_amount.x as i128;
+
+                // clamp to [0, usize::MAX]
+                start_i128 = start_i128.clamp(0, usize_max_i128);
+                end_i128 = end_i128.clamp(0, usize_max_i128);
+
+                if start_i128 > end_i128 {
+                    core::mem::swap(&mut start_i128, &mut end_i128);
+                }
+
+                iv.interval.0 = start_i128 as usize;
+                iv.interval.1 = end_i128 as usize;
+
+                new_map.entry(new_y).or_default().push(iv);
+            }
+        }
+
+        self.intervals = new_map;
+    }
+
+    pub fn dump_intervals(&mut self) -> HashMap<u16, Vec<UpdateInterval>> {
         std::mem::take(&mut self.intervals)
     }
 }

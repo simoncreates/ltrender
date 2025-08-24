@@ -4,6 +4,7 @@ use log::info;
 use std::collections::HashMap;
 
 use crate::draw::ScreenBuffer;
+use crate::draw::drawable_register::ObjectLifetime;
 use crate::draw::terminal_buffer::drawable::Drawable;
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::{
@@ -12,7 +13,7 @@ use crate::draw::{
 }; // bring the trait into scope
 
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 pub mod render_handle;
 pub use render_handle::RendererHandle;
 
@@ -74,17 +75,18 @@ where
         new_area: Rect<i32>,
     ) -> Result<(), DrawError> {
         if let Some(s) = self.screens.get_mut(&screen_id) {
-            info!(
-                "Changing screen area of screen {} to from:{:?} to {:?}, removing all drawables first",
-                screen_id, s.area, new_area
-            );
-            s.remove_all_drawables(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
-            info!("changubg area now");
+            s.remove_all(
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
             s.change_screen_area(new_area);
-            info!("Changed area, re-rendering all drawables");
-            s.render_all(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
-            info!("refreshing terminal");
-            self.refresh(true)?;
+            s.render_all(
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
+            self.refresh(false)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
@@ -97,9 +99,13 @@ where
         new_layer: usize,
     ) -> Result<(), DrawError> {
         if let Some(s) = self.screens.get_mut(&screen_id) {
-            s.remove_all_drawables(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
+            s.remove_all(
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
             s.change_screen_layer(new_layer);
-            s.render_all(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
+            self.refresh(false)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
@@ -129,7 +135,7 @@ where
             s.remove_drawable(
                 id.object_id,
                 &mut self.screen_buffer,
-                &self.obj_library,
+                &mut self.obj_library,
                 &self.sprites,
             )?;
             self.refresh(false)?;
@@ -137,6 +143,73 @@ where
         } else {
             Err(DrawError::DisplayKeyNotFound(id.screen_id))
         }
+    }
+
+    pub fn explicit_remove_drawable(&mut self, id: &DrawObjectKey) -> Result<(), DrawError> {
+        if let Some(s) = self.screens.get_mut(&id.screen_id) {
+            s.remove_drawable(
+                id.object_id,
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
+            s.deregister_drawable(id.object_id);
+            self.refresh(false)?;
+            Ok(())
+        } else {
+            Err(DrawError::DisplayKeyNotFound(id.screen_id))
+        }
+    }
+
+    /// checks, if any of the currently existing drawobjects should be removed,
+    /// because its duration on screen has ended
+    pub fn check_if_object_lifetime_ended(&mut self) -> Result<(), DrawError> {
+        let now = Instant::now();
+
+        let expired_keys: Vec<DrawObjectKey> = self
+            .obj_library
+            .all_objects
+            .iter()
+            .filter_map(|(k, obj)| {
+                if let ObjectLifetime::ForTime(dur) = obj.lifetime {
+                    if now >= obj.creation_time + dur {
+                        Some(*k)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for key in expired_keys {
+            self.explicit_remove_drawable(&key)?;
+        }
+
+        Ok(())
+    }
+
+    /// removes all the objects from screen, that have framebased removal, due to their lifetime
+    pub fn remove_all_framebased_objects(&mut self) -> Result<(), DrawError> {
+        let expired_keys: Vec<DrawObjectKey> = self
+            .obj_library
+            .all_objects
+            .iter()
+            .filter_map(|(k, obj)| {
+                if let ObjectLifetime::RemoveNextFrame = obj.lifetime {
+                    Some(*k)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for key in expired_keys {
+            self.explicit_remove_drawable(&key)?;
+        }
+
+        Ok(())
     }
 
     /// Load a sprite from an ASCII video file.
@@ -151,10 +224,11 @@ where
     /// Render a single drawable object.
     pub fn render_drawable(&mut self, id: DrawObjectKey) -> Result<(), DrawError> {
         if let Some(s) = self.screens.get_mut(&id.screen_id) {
+            s.register_drawable(id.object_id);
             s.render_drawable(
                 id.object_id,
                 &mut self.screen_buffer,
-                &self.obj_library,
+                &mut self.obj_library,
                 &self.sprites,
             )?;
 
@@ -164,41 +238,14 @@ where
             Err(DrawError::DisplayKeyNotFound(id.screen_id))
         }
     }
-
-    /// first removes the older version of the Drawable
-    /// then replaces annd draws it to the terminalbuffer
-    ///
-    /// ## info
-    /// this function is only here for completeness purposes,
-    /// using it is generally not recommended
-    pub fn replace_drawable(
-        &mut self,
-        id: DrawObjectKey,
-        new_obj: DrawObject,
-    ) -> Result<(), DrawError> {
-        if let Some(s) = self.screens.get_mut(&id.screen_id) {
-            s.remove_drawable(
-                id.object_id,
-                &mut self.screen_buffer,
-                &self.obj_library,
-                &self.sprites,
-            )?;
-            self.obj_library.update_drawable(id, new_obj);
-            s.render_drawable(
-                id.object_id,
-                &mut self.screen_buffer,
-                &self.obj_library,
-                &self.sprites,
-            )?;
-            Ok(())
-        } else {
-            Err(DrawError::DisplayKeyNotFound(id.screen_id))
-        }
-    }
     /// Render all objects on all screens.
     fn render_all(&mut self) -> Result<(), DrawError> {
         for screen in self.screens.values_mut() {
-            screen.render_all(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
+            screen.render_all(
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
         }
         self.refresh(false)?;
         Ok(())
@@ -220,7 +267,9 @@ where
     }
 
     pub fn render_frame(&mut self) -> Result<(), DrawError> {
+        self.remove_all_framebased_objects()?;
         self.render_all()?;
+
         self.refresh(true)?;
         Ok(())
     }
@@ -236,7 +285,7 @@ where
 
     pub fn clear_terminal(&mut self) {
         for screen in self.screens.values_mut() {
-            screen.dump_after_frame();
+            screen.switch_obj_ids_after_frame();
         }
     }
 

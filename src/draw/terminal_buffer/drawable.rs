@@ -10,20 +10,7 @@ pub struct BasicDraw {
     pub chr: TerminalChar,
 }
 
-pub trait Cloneable {
-    fn clone_box(&self) -> Box<dyn Drawable>;
-}
-
-impl<T> Cloneable for T
-where
-    T: 'static + Drawable + Clone,
-{
-    fn clone_box(&self) -> Box<dyn Drawable> {
-        Box::new(self.clone())
-    }
-}
-
-pub trait Drawable: Cloneable + std::fmt::Debug + Send {
+pub trait Drawable: std::fmt::Debug + Send {
     /// Render this object into a list of terminal cells.
     ///
     /// The method should not perform any clipping, layering or buffer
@@ -55,44 +42,6 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
         None
     }
 
-    /// Return **a new** drawable that has been shifted by the given offset.
-    ///
-    /// The returned value is boxed as a trait object
-    ///
-    /// ## Parameters
-    ///
-    /// * `offset` – A point indicating how far to shift the current position.
-    ///
-    /// ## Returns
-    ///
-    /// A boxed trait object that implements `Drawable`.
-    ///
-    /// ## Examples
-    ///
-    /// ```
-    /// # use crate::draw::{
-    /// #    terminal_buffer::{
-    /// #        Drawable,
-    /// #        drawable::SpriteDrawable,
-    /// #    },
-    /// # };
-    /// # use common_stdx::Point;
-    ///
-    /// let original = SpriteDrawable {
-    ///     position: Point { x: 0, y: 0 },
-    ///     sprite_id: 42,
-    /// };
-    ///
-    /// let shifted_drawable = original.shifted(Point { x: 10, y: 5 });
-    ///
-    /// let shifted = shifted_drawable
-    ///     .downcast::<SpriteDrawable>()
-    ///     .unwrap();
-    ///
-    /// assert_eq!(shifted.position, Point { x: 10, y: 5 });
-    /// ```
-    fn shifted(&self, offset: Point<i32>) -> Box<dyn Drawable>;
-
     fn size(&self, sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError>;
 
     fn get_top_left(&mut self) -> Option<Point<i32>> {
@@ -118,12 +67,6 @@ pub trait Drawable: Cloneable + std::fmt::Debug + Send {
     }
     fn as_multi_pointed(&self) -> Option<&dyn MultiPointed> {
         None
-    }
-}
-
-impl Clone for Box<dyn Drawable> {
-    fn clone(&self) -> Box<dyn Drawable> {
-        self.clone_box()
     }
 }
 
