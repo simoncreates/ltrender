@@ -20,12 +20,27 @@ impl RendererHandle {
         let _ = self.tx.send(RendererCommand::SetUpdateInterval(amount));
     }
 
+    pub fn set_render_mode(&self, mode: RenderMode) {
+        let _ = self.tx.send(RendererCommand::SetRenderMode(mode));
+    }
+
     pub fn create_screen(&self, rect: Rect<i32>, layer: usize) -> ScreenKey {
         let (reply_tx, reply_rx) = mpsc::channel();
         let _ = self
             .tx
             .send(RendererCommand::CreateScreen(rect, layer, reply_tx));
         reply_rx.recv().unwrap()
+    }
+
+    pub fn change_screen_area(&self, screen_id: ScreenKey, new_area: Rect<i32>) {
+        let _ = self
+            .tx
+            .send(RendererCommand::ChangeScreenArea(screen_id, new_area));
+    }
+    pub fn change_screen_layer(&self, screen_id: ScreenKey, new_layer: usize) {
+        let _ = self
+            .tx
+            .send(RendererCommand::ChangeScreenLayer(screen_id, new_layer));
     }
 
     pub fn render_drawable(&self, id: DrawObjectKey) {
@@ -132,6 +147,12 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
                     let key = r.create_screen(rect, layer);
                     let _ = reply.send(key);
                 }
+                RendererCommand::ChangeScreenArea(id, new_area) => {
+                    let _ = r.change_screen_area(id, new_area);
+                }
+                RendererCommand::ChangeScreenLayer(id, new_layer) => {
+                    let _ = r.change_screen_layer(id, new_layer);
+                }
                 RendererCommand::RegisterDrawable(screen, obj, reply) => {
                     let result = r.register_drawable(screen, obj);
                     let _ = reply.send(result);
@@ -184,6 +205,8 @@ pub enum RendererCommand {
     SetRenderMode(RenderMode),
     SetUpdateInterval(usize),
     CreateScreen(Rect<i32>, usize, std::sync::mpsc::Sender<ScreenKey>),
+    ChangeScreenArea(ScreenKey, Rect<i32>),
+    ChangeScreenLayer(ScreenKey, usize),
     RegisterDrawable(
         ScreenKey,
         DrawObject,

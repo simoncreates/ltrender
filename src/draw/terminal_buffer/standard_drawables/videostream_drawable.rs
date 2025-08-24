@@ -9,7 +9,6 @@ use crate::draw::{
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 use flume::{Receiver, TryRecvError};
-use log::info;
 
 #[derive(Debug, Clone)]
 pub struct StreamFrame {
@@ -76,7 +75,6 @@ impl Drawable for VideoStreamDrawable {
                 if draws.is_empty() {
                     return Ok(Vec::new());
                 }
-                info!("draws: {:?}", draws[0].pos);
                 Ok(draws)
             }
             Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => Ok(Vec::new()),

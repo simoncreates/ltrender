@@ -17,7 +17,7 @@ use crate::draw::error::AppError;
 use crate::draw::renderer::RendererHandle;
 use crate::draw::renderer::render_handle::RendererManager;
 use crate::draw::terminal_buffer::screen_buffer::shaders::{
-    FlipDiagonal, FlipHorizontal, FlipVertical, Grayscale,
+    FlipHorizontal, FlipVertical, Grayscale,
 };
 use crate::draw::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::draw::terminal_buffer::standard_drawables::sprite_drawable::{
@@ -46,7 +46,6 @@ fn create_frame(width: u16, height: u16, tick: usize) -> Vec<Option<TerminalChar
         for x in 0..width {
             let xf = x as f32;
             let yf = y as f32;
-            let w = width as f32;
             let h = height as f32;
 
             let wave = (xf + tick as f32) * 0.2;
@@ -142,17 +141,17 @@ fn main() -> Result<(), AppError> {
     let sprite_id =
         r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())?;
 
-    let (sender, drawable) = make_videostream_drawable((10, 10))?;
+    // let (sender, drawable) = make_videostream_drawable((10, 10))?;
 
-    let videostream_id = DrawObjectBuilder::default()
-        .layer(8000)
-        .screen(screen_id)
-        .drawable(drawable)
-        .shader(FlipVertical)
-        .shader(FlipHorizontal)
-        .build(&mut r)?;
+    // let videostream_id = DrawObjectBuilder::default()
+    //     .layer(8000)
+    //     .screen(screen_id)
+    //     .drawable(drawable)
+    //     .shader(FlipVertical)
+    //     .shader(FlipHorizontal)
+    //     .build(&mut r)?;
 
-    spawn_frame_sender(sender, r.clone(), videostream_id);
+    // spawn_frame_sender(sender, r.clone(), videostream_id);
 
     let video_drawable = SpriteDrawableBuilder::default()
         .sprite_id(sprite_id)
@@ -172,17 +171,6 @@ fn main() -> Result<(), AppError> {
         .shader(FlipHorizontal)
         .shader(Grayscale)
         .build(&mut r)?;
-
-    let points: Vec<Point<i32>> = vec![
-        Point { x: 10, y: 2 },
-        Point { x: 14, y: 8 },
-        Point { x: 20, y: 4 },
-        Point { x: 16, y: 12 },
-        Point { x: 20, y: 20 },
-        Point { x: 14, y: 16 },
-        Point { x: 10, y: 22 },
-        Point { x: 6, y: 12 },
-    ];
 
     let text_drawable = Box::new(text_drawable::TextDrawable {
         area: Rect::from_coords(50, 50, 60, 60),
@@ -247,24 +235,6 @@ fn main() -> Result<(), AppError> {
         .layer(34095803498)
         .screen(screen_id)
         .drawable(text_drawable)
-        .build(&mut r)?;
-
-    let polygon_id = DrawObjectBuilder::default()
-        .layer(6000)
-        .screen(screen_id)
-        .polygon_drawable(|p| {
-            p.border_style('P').points(points).fill_style(TerminalChar {
-                chr: ' ',
-                fg_color: Some(Color {
-                    reset: false,
-                    rgb: (200, 40, 255),
-                }),
-                bg_color: Some(Color {
-                    reset: false,
-                    rgb: (200, 40, 255),
-                }),
-            })
-        })?
         .build(&mut r)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
@@ -334,7 +304,16 @@ fn main() -> Result<(), AppError> {
                         );
                     }
                     if k.code == KeyCode::Char('d') {
-                        r.move_drawable_by(sprite_video_id, 1, 0);
+                        // r.move_drawable_by(sprite_video_id, 1, 0);
+                    }
+                    if k.code == KeyCode::Char('r') {
+                        let new_area = Rect::from_coords(
+                            rng.gen_range(20..30),
+                            rng.gen_range(20..30),
+                            term_size.0 as i32,
+                            term_size.1 as i32,
+                        );
+                        r.change_screen_area(screen_id, new_area);
                     }
                 }
                 Event::Resize(new_cols, new_rows) => {
@@ -383,14 +362,12 @@ fn main() -> Result<(), AppError> {
             frames_since_last = 0;
         }
 
-        // thread::sleep(Duration::from_millis(80));
-
         r.render_drawable(sprite_video_id);
-        r.render_drawable(polygon_id);
         r.render_drawable(text_id);
 
         r.render_frame();
-        r.clear_terminal();
+
+        // r.clear_terminal();
     }
 
     manager.stop();

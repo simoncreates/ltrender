@@ -11,6 +11,8 @@ use crate::draw::{
     SpriteRegistry, error::AppError,
 }; // bring the trait into scope
 
+use std::thread;
+use std::time::Duration;
 pub mod render_handle;
 pub use render_handle::RendererHandle;
 
@@ -66,6 +68,44 @@ where
         new_id
     }
 
+    pub fn change_screen_area(
+        &mut self,
+        screen_id: ScreenKey,
+        new_area: Rect<i32>,
+    ) -> Result<(), DrawError> {
+        if let Some(s) = self.screens.get_mut(&screen_id) {
+            info!(
+                "Changing screen area of screen {} to from:{:?} to {:?}, removing all drawables first",
+                screen_id, s.area, new_area
+            );
+            s.remove_all_drawables(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
+            info!("changubg area now");
+            s.change_screen_area(new_area);
+            info!("Changed area, re-rendering all drawables");
+            s.render_all(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
+            info!("refreshing terminal");
+            self.refresh(true)?;
+            Ok(())
+        } else {
+            Err(DrawError::DisplayKeyNotFound(screen_id))
+        }
+    }
+
+    pub fn change_screen_layer(
+        &mut self,
+        screen_id: ScreenKey,
+        new_layer: usize,
+    ) -> Result<(), DrawError> {
+        if let Some(s) = self.screens.get_mut(&screen_id) {
+            s.remove_all_drawables(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
+            s.change_screen_layer(new_layer);
+            s.render_all(&mut self.screen_buffer, &self.obj_library, &self.sprites)?;
+            Ok(())
+        } else {
+            Err(DrawError::DisplayKeyNotFound(screen_id))
+        }
+    }
+
     /// Register a drawable object on a screen.
     pub fn register_drawable(
         &mut self,
@@ -117,6 +157,7 @@ where
                 &self.obj_library,
                 &self.sprites,
             )?;
+
             self.refresh(false)?;
             Ok(())
         } else {
@@ -126,6 +167,10 @@ where
 
     /// first removes the older version of the Drawable
     /// then replaces annd draws it to the terminalbuffer
+    ///
+    /// ## info
+    /// this function is only here for completeness purposes,
+    /// using it is generally not recommended
     pub fn replace_drawable(
         &mut self,
         id: DrawObjectKey,

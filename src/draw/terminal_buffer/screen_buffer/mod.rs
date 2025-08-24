@@ -4,6 +4,7 @@ use crate::draw::{
     update_interval_handler::UpdateIntervalCreator,
 };
 use common_stdx::Rect;
+use log::info;
 
 use std::{collections::HashMap, fmt::Debug};
 
@@ -84,6 +85,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError> {
         let drawable = &mut obj.drawable;
+        info!("Adding obj_id {} to buffer", obj_id,);
 
         let mut draws = drawable.draw(sprites)?;
 
@@ -133,6 +135,11 @@ pub trait ScreenBuffer: ScreenBufferCore {
         let ivs: HashMap<u16, UpdateInterval> = self.handle_none_interval_creator(opt_c);
         let (buf_cols, buf_rows) = self.size();
 
+        info!(
+            "Removing obj_id {} , with intervals: {:#?} and drawable {:#?}",
+            obj_id, ivs, obj.drawable
+        );
+
         for (row, interval) in ivs.into_iter() {
             if row >= buf_rows {
                 continue;
@@ -156,7 +163,6 @@ pub trait ScreenBuffer: ScreenBufferCore {
     }
 
     fn update_terminal(&mut self, expand: usize) -> Result<(), DrawError> {
-        self.intervals_mut().invalidate_entire_screen();
         self.intervals_mut().expand_regions(expand);
         self.intervals_mut().merge_intervals();
         let intervals = self.intervals_mut().dump_intervals();

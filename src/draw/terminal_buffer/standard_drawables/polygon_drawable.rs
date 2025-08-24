@@ -310,4 +310,16 @@ impl Drawable for PolygonDrawable {
 
         Some(c)
     }
+    fn get_top_left(&mut self) -> Option<Point<i32>> {
+        let mut top_left: Option<Point<i32>> = None;
+        for p in &self.points {
+            if let Some(ref mut tl) = top_left {
+                tl.x = tl.x.min(p.x);
+                tl.y = tl.y.min(p.y);
+            } else {
+                top_left = Some(*p);
+            }
+        }
+        top_left
+    }
 }
