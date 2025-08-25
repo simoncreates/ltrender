@@ -4,7 +4,7 @@ use crossterm::event::{Event, KeyCode, poll, read};
 use crossterm::terminal::size;
 use env_logger::Builder;
 use log::info;
-use rand::Rng as _;
+use rand::Rng;
 use std::fs::File;
 use std::io::Write;
 use std::sync::mpsc::{Sender, SyncSender};
@@ -76,7 +76,6 @@ fn spawn_frame_sender(
     render_handle: RendererHandle,
     drawobjectkey: DrawObjectKey,
 ) {
-    // Pick a size – the same one you will set on the drawable.
     const WIDTH: u16 = 80;
     const HEIGHT: u16 = 24;
 
@@ -89,13 +88,11 @@ fn spawn_frame_sender(
                 size: (WIDTH, HEIGHT),
             };
 
-            // If the renderer drops the channel we stop producing.
             if sender.send(frame).is_err() {
                 break;
             }
             render_handle.render_drawable(drawobjectkey);
 
-            // ~30 FPS
             thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
         }
@@ -132,7 +129,8 @@ fn main() -> Result<(), AppError> {
 
     let (manager, mut r) = RendererManager::new::<DefaultScreenBuffer>(term_size, 500);
 
-    r.set_update_interval(2000000000000);
+    r.set_update_interval(20);
+    r.set_render_mode(draw::renderer::RenderMode::Instant);
     // create screen
     let screen_id = r.create_screen(
         Rect::from_coords(0, 0, term_size.0 as i32, term_size.1 as i32),
@@ -150,7 +148,7 @@ fn main() -> Result<(), AppError> {
         .drawable(drawable)
         .shader(FlipVertical)
         .shader(FlipHorizontal)
-        .add_lifetime(ObjectLifetime::ExplicitRemove)
+        .add_lifetime(ObjectLifetime::ForTime(Duration::from_secs(1)))
         .build(&mut r)?;
 
     spawn_frame_sender(sender, r.clone(), videostream_id);
@@ -172,7 +170,7 @@ fn main() -> Result<(), AppError> {
         .drawable(video_drawable)
         .shader(FlipHorizontal)
         .shader(Grayscale)
-        .add_lifetime(ObjectLifetime::RemoveNextFrame)
+        .add_lifetime(ObjectLifetime::ExplicitRemove)
         .build(&mut r)?;
 
     let text_drawable = Box::new(text_drawable::TextDrawable {
@@ -242,7 +240,7 @@ fn main() -> Result<(), AppError> {
         .build(&mut r)?;
 
     let mut poly_anims: Vec<PolyAnim> = Vec::new();
-    for i in 0..20 {
+    for i in 0..3 {
         let cx = rng.gen_range(2..term_size.0 - 2) as f64;
         let cy = rng.gen_range(2..term_size.1 - 2) as f64;
         let radius = rng.gen_range(3..20) as f64;
@@ -269,7 +267,7 @@ fn main() -> Result<(), AppError> {
                 fill_style: Some(fill_style),
                 border_style,
             }),
-            lifetime: ObjectLifetime::ExplicitRemove,
+            lifetime: ObjectLifetime::RemoveNextFrame,
             creation_time: Instant::now(),
         };
         let poly_id = r.register_drawable(screen_id, obj)?;
@@ -286,6 +284,9 @@ fn main() -> Result<(), AppError> {
             speed,
         });
     }
+
+    r.render_drawable(sprite_video_id);
+    r.render_drawable(text_id);
 
     let mut frame_time = Vec::new();
     let program_start = Instant::now();
@@ -310,12 +311,32 @@ fn main() -> Result<(), AppError> {
                         );
                     }
                     if k.code == KeyCode::Char('d') {
-                        // r.move_drawable_by(sprite_video_id, 1, 0);
+                        r.move_drawable_by(sprite_video_id, 1, 0);
+                    }
+                    if k.code == KeyCode::Char('a') {
+                        r.explicit_remove_drawable(sprite_video_id);
                     }
                     if k.code == KeyCode::Char('r') {
                         let new_area = Rect::from_coords(
                             rng.gen_range(20..30),
                             rng.gen_range(20..30),
+                            term_size.0 as i32,
+                            term_size.1 as i32,
+                        );
+                        r.change_screen_area(screen_id, new_area);
+                    }
+                }
+                Event::Mouse(mouse_event) => {
+                    use crossterm::event::{MouseEvent, MouseEventKind};
+
+                    if let MouseEventKind::Drag(_) = mouse_event.kind {
+                        println!(
+                            "Mouse dragging at: {}, {}",
+                            mouse_event.column, mouse_event.row
+                        );
+                        let new_area = Rect::from_coords(
+                            mouse_event.column as i32,
+                            mouse_event.row as i32,
                             term_size.0 as i32,
                             term_size.1 as i32,
                         );
@@ -367,11 +388,10 @@ fn main() -> Result<(), AppError> {
             last_report = Instant::now();
             frames_since_last = 0;
         }
-        r.render_drawable(sprite_video_id);
-        r.render_drawable(text_id);
 
-        r.render_frame();
-        r.clear_terminal();
+        thread::sleep(Duration::from_millis(20));
+
+        // r.render_frame();
     }
 
     manager.stop();

@@ -1,4 +1,4 @@
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver};
 
 use common_stdx::Point;
 
@@ -38,6 +38,10 @@ impl VideoStreamDrawableBuilder {
                 .receiver
                 .ok_or(DrawObjectBuilderError::FailedToBuildVideoStream())?,
             size: self.size.unwrap_or((0, 0)),
+            last_frame: StreamFrame {
+                size: (0, 0),
+                data: Vec::new(),
+            },
         }))
     }
 }

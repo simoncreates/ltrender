@@ -94,7 +94,6 @@ pub trait ScreenBuffer: ScreenBufferCore {
         } else {
             Point { x: 0, y: 0 }
         };
-
         let opt_c = drawable.bounding_iv(sprites);
         // TODO: is this right??
         _ = self.handle_none_interval_creator(opt_c, bounds.p1);
@@ -105,8 +104,13 @@ pub trait ScreenBuffer: ScreenBufferCore {
                 pos: unshifted_bd.pos + bounds.p1,
                 chr: unshifted_bd.chr,
             };
+
             for shader in &obj.shaders {
-                shader.apply(&mut rd, (size.0 as usize, size.1 as usize), top_left);
+                shader.apply(
+                    &mut rd,
+                    (size.0 as usize, size.1 as usize),
+                    top_left + bounds.p1,
+                );
             }
             if !bounds.contains(rd.pos) {
                 continue;

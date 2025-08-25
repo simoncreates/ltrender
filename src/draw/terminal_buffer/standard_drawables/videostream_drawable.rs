@@ -20,6 +20,7 @@ pub struct StreamFrame {
 #[derive(Debug)]
 pub struct VideoStreamDrawable {
     pub position: Point<i32>,
+    pub last_frame: StreamFrame,
     pub receiver: Receiver<StreamFrame>,
     pub size: (u16, u16),
 }
@@ -44,42 +45,43 @@ impl Drawable for VideoStreamDrawable {
 
     fn draw(&mut self, _: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
         match self.receiver.try_recv() {
-            Ok(frame) => {
-                self.size = frame.size;
-                let width = self.size.0 as usize;
-                let height = self.size.1 as usize;
-                let cells = width * height;
+            Ok(frame) => self.last_frame = frame,
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => return Ok(Vec::new()),
+        };
+        let frame = &self.last_frame;
+        self.size = frame.size;
+        let width = self.size.0 as usize;
+        let height = self.size.1 as usize;
+        let cells = width * height;
 
-                // avoid division/modulo by zero
-                if width == 0 || height == 0 {
-                    return Ok(Vec::new());
-                }
-
-                let mut draws: Vec<BasicDraw> = Vec::with_capacity(frame.data.len().min(cells));
-
-                for (i, opt_ch) in frame.data.iter().enumerate() {
-                    let idx = i % cells;
-                    let x_off = (idx % width) as i32;
-                    let y_off = (idx / width) as i32;
-
-                    if let Some(char) = opt_ch {
-                        draws.push(BasicDraw {
-                            pos: Point {
-                                x: self.position.x + x_off,
-                                y: self.position.y + y_off,
-                            },
-                            chr: *char,
-                        });
-                    }
-                }
-
-                if draws.is_empty() {
-                    return Ok(Vec::new());
-                }
-                Ok(draws)
-            }
-            Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => Ok(Vec::new()),
+        // avoid division/modulo by zero
+        if width == 0 || height == 0 {
+            return Ok(Vec::new());
         }
+
+        let mut draws: Vec<BasicDraw> = Vec::with_capacity(frame.data.len().min(cells));
+
+        for (i, opt_ch) in frame.data.iter().enumerate() {
+            let idx = i % cells;
+            let x_off = (idx % width) as i32;
+            let y_off = (idx / width) as i32;
+
+            if let Some(char) = opt_ch {
+                draws.push(BasicDraw {
+                    pos: Point {
+                        x: self.position.x + x_off,
+                        y: self.position.y + y_off,
+                    },
+                    chr: *char,
+                });
+            }
+        }
+
+        if draws.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(draws)
     }
     fn bounding_iv(&self, _: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
         let mut c = UpdateIntervalCreator::new();

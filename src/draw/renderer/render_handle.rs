@@ -1,5 +1,5 @@
 use std::{
-    sync::mpsc::{self, Receiver},
+    sync::mpsc::{self, Receiver, SyncSender},
     thread,
     time::{Duration, Instant},
 };
@@ -48,6 +48,10 @@ impl RendererHandle {
         let _ = self.tx.send(RendererCommand::RenderDrawable(id));
     }
 
+    pub fn explicit_remove_drawable(&self, id: DrawObjectKey) {
+        let _ = self.tx.send(RendererCommand::ExplicitRemoveDrawable(id));
+    }
+
     pub fn register_drawable(
         &self,
         screen_id: ScreenKey,
@@ -82,10 +86,6 @@ impl RendererHandle {
         let _ = self.tx.send(RendererCommand::RenderFrame);
     }
 
-    pub fn clear_terminal(&self) {
-        let _ = self.tx.send(RendererCommand::ClearTerminal);
-    }
-
     pub fn check_if_object_lifetime_ended(&self) {
         let _ = self.tx.send(RendererCommand::CheckIfObjectLifetimeEnded());
     }
@@ -98,6 +98,7 @@ impl RendererHandle {
 pub struct RendererManager {
     tx: mpsc::SyncSender<RendererCommand>,
     handle: Option<std::thread::JoinHandle<()>>,
+    checker_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl RendererManager {
@@ -107,10 +108,12 @@ impl RendererManager {
     ) -> (Self, RendererHandle) {
         let (tx, rx) = mpsc::sync_channel(buffer_size);
         let join_handle = run_renderer::<B>(size, rx);
+        let checker_join_handle = run_object_lifetime_checker(tx.clone());
 
         let manager = RendererManager {
             tx: tx.clone(),
             handle: Some(join_handle),
+            checker_handle: Some(checker_join_handle),
         };
         let handle = RendererHandle { tx };
         (manager, handle)
@@ -119,6 +122,9 @@ impl RendererManager {
     pub fn stop(mut self) {
         let _ = self.tx.send(RendererCommand::Stop);
         if let Some(h) = self.handle.take() {
+            let _ = h.join();
+        }
+        if let Some(h) = self.checker_handle.take() {
             let _ = h.join();
         }
     }
@@ -130,7 +136,27 @@ impl Drop for RendererManager {
         if let Some(h) = self.handle.take() {
             let _ = h.join();
         }
+        if let Some(h) = self.checker_handle.take() {
+            let _ = h.join();
+        }
     }
+}
+
+/// used to check every 16 ms, if an object needs to be removed from screen
+/// extits if the receiver is gone
+/// TODO: make this code smarter
+fn run_object_lifetime_checker(tx: SyncSender<RendererCommand>) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        loop {
+            thread::sleep(Duration::from_millis(5));
+            if tx
+                .send(RendererCommand::CheckIfObjectLifetimeEnded())
+                .is_err()
+            {
+                break;
+            }
+        }
+    })
 }
 
 pub fn run_renderer<B: ScreenBuffer + 'static>(
@@ -165,6 +191,9 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
                     let result = r.register_drawable(screen, obj);
                     let _ = reply.send(result);
                 }
+                RendererCommand::ExplicitRemoveDrawable(id) => {
+                    let _ = r.explicit_remove_drawable(&id);
+                }
                 RendererCommand::RemoveDrawable(id) => {
                     let _ = r.remove_drawable(id);
                 }
@@ -196,9 +225,6 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
                 RendererCommand::RenderFrame => {
                     let _ = r.render_frame();
                 }
-                RendererCommand::ClearTerminal => {
-                    r.clear_terminal();
-                }
                 RendererCommand::Stop => break,
             }
         }
@@ -221,6 +247,7 @@ pub enum RendererCommand {
     RemoveDrawable(DrawObjectKey),
     RegisterSpriteFromSource(String, std::sync::mpsc::Sender<Result<SpriteId, AppError>>),
     RenderDrawable(DrawObjectKey),
+    ExplicitRemoveDrawable(DrawObjectKey),
     ReplaceDrawablePoints(DrawObjectKey, Vec<Point<i32>>),
     MoveDrawableTo(DrawObjectKey, Point<i32>),
     MoveDrawableBy(DrawObjectKey, i32, i32),
@@ -228,6 +255,5 @@ pub enum RendererCommand {
     MoveMultiPointDrawablePoint(DrawObjectKey, usize, Point<i32>),
     HandleResize((u16, u16)),
     RenderFrame,
-    ClearTerminal,
     Stop,
 }

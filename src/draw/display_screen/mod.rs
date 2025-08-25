@@ -1,9 +1,10 @@
 use crate::draw::{
     DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
+    drawable_register::ObjectLifetime,
 };
 use common_stdx::Rect;
+use log::info;
 pub type ScreenKey = usize;
-use std::mem;
 
 #[derive(Debug)]
 pub struct Screen {
@@ -31,9 +32,19 @@ impl Screen {
         self.layer = new_layer;
     }
 
+    /// allows others to read the private objects
+    pub fn all_listed_drawobjects(&self) -> Vec<ObjectId> {
+        self.draw_objects.clone()
+    }
+
     /// register a drawable, so it can be drawn on this screen
-    pub fn register_drawable(&mut self, obj_id: ObjectId) {
-        if !self.draw_objects.contains(&obj_id) {
+    pub fn register_drawable(&mut self, obj_id: ObjectId, obj_library: &DrawObjectLibrary) {
+        if !self.draw_objects.contains(&obj_id)
+            && obj_library.all_objects.contains_key(&DrawObjectKey {
+                screen_id: self.id,
+                object_id: obj_id,
+            })
+        {
             self.draw_objects.push(obj_id);
         }
     }
@@ -55,7 +66,9 @@ impl Screen {
     where
         T: ScreenBuffer,
     {
-        self.register_drawable(object_id);
+        if !self.draw_objects.contains(&object_id) {
+            return Ok(());
+        }
 
         let opt_obj = obj_library.get_mut(&DrawObjectKey {
             screen_id: self.id,
@@ -115,9 +128,6 @@ impl Screen {
         Ok(())
     }
 
-    pub fn switch_obj_ids_after_frame(&mut self) {
-        self.draw_objects = mem::take(&mut self.draw_objects);
-    }
     /// uncoditionally renders all owned drawables
     pub fn render_all<T>(
         &mut self,
@@ -128,7 +138,7 @@ impl Screen {
     where
         T: ScreenBuffer,
     {
-        let obj_ids: Vec<ObjectId> = self.draw_objects.to_vec();
+        let obj_ids: Vec<_> = self.draw_objects.to_vec();
         for obj_id in obj_ids {
             self.render_drawable(obj_id, screen_buffer, obj_library, sprites)?;
         }

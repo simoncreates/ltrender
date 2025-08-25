@@ -1,2 +1,25 @@
-[INFO] - ltrender - FPS: 66.56 | Avg frame time: 14.537 ms
-[INFO] - ltrender - average frametime: 15.115 ms
+[INFO] - ltrender - FPS: 40.71 | Avg frame time: 4.341 ms
+[INFO] - ltrender - FPS: 43.06 | Avg frame time: 3.447 ms
+[INFO] - ltrender - FPS: 44.78 | Avg frame time: 2.869 ms
+[INFO] - ltrender - FPS: 41.24 | Avg frame time: 3.052 ms
+[INFO] - ltrender - FPS: 39.00 | Avg frame time: 3.415 ms
+[INFO] - ltrender - FPS: 35.41 | Avg frame time: 4.008 ms
+[INFO] - ltrender - FPS: 37.30 | Avg frame time: 4.280 ms
+[INFO] - ltrender - FPS: 48.72 | Avg frame time: 3.654 ms
+[INFO] - ltrender - FPS: 44.40 | Avg frame time: 3.445 ms
+[INFO] - ltrender - FPS: 39.82 | Avg frame time: 3.543 ms
+[INFO] - ltrender - FPS: 35.59 | Avg frame time: 3.838 ms
+[INFO] - ltrender - FPS: 41.60 | Avg frame time: 3.805 ms
+[INFO] - ltrender - FPS: 44.11 | Avg frame time: 3.665 ms
+[INFO] - ltrender - FPS: 47.75 | Avg frame time: 3.404 ms
+[INFO] - ltrender - FPS: 41.81 | Avg frame time: 3.397 ms
+[INFO] - ltrender - FPS: 31.92 | Avg frame time: 3.757 ms
+[INFO] - ltrender - FPS: 30.42 | Avg frame time: 4.128 ms
+[INFO] - ltrender - FPS: 31.40 | Avg frame time: 4.430 ms
+[INFO] - ltrender - FPS: 31.52 | Avg frame time: 4.701 ms
+[INFO] - ltrender - FPS: 31.52 | Avg frame time: 4.951 ms
+[INFO] - ltrender - FPS: 31.40 | Avg frame time: 5.184 ms
+[INFO] - ltrender - FPS: 32.55 | Avg frame time: 5.367 ms
+[INFO] - ltrender - FPS: 35.52 | Avg frame time: 5.446 ms
+[INFO] - ltrender - FPS: 44.71 | Avg frame time: 5.273 ms
+[INFO] - ltrender - FPS: 34.31 | Avg frame time: 5.382 ms
