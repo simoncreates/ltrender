@@ -8,7 +8,7 @@ use common_stdx::{Point, Rect};
 
 use crate::draw::{
     DrawError, DrawObject, DrawObjectKey, Renderer, ScreenBuffer, ScreenKey, SpriteId,
-    error::AppError, renderer::RenderMode,
+    error::AppError, renderer::RenderMode, terminal_buffer::Drawable,
 };
 
 #[derive(Clone, Debug)]
@@ -76,6 +76,10 @@ impl RendererHandle {
         let _ = self
             .tx
             .send(RendererCommand::ReplaceDrawablePoints(id, pts));
+    }
+
+    pub fn replace_drawable(&self, id: DrawObjectKey, drawable: Box<dyn Drawable>) {
+        let _ = self.tx.send(RendererCommand::ReplaceDrawable(id, drawable));
     }
 
     pub fn move_drawable_by(&self, id: DrawObjectKey, dx: i32, dy: i32) {
@@ -197,6 +201,9 @@ pub fn run_renderer<B: ScreenBuffer + 'static>(
                 RendererCommand::RemoveDrawable(id) => {
                     let _ = r.remove_drawable(id);
                 }
+                RendererCommand::ReplaceDrawable(id, drawable) => {
+                    let _ = r.replace_drawable(id, drawable);
+                }
                 RendererCommand::RegisterSpriteFromSource(path, reply) => {
                     let result = r.register_sprite_from_source(&path);
                     let _ = reply.send(result);
@@ -244,6 +251,7 @@ pub enum RendererCommand {
         DrawObject,
         std::sync::mpsc::Sender<Result<DrawObjectKey, DrawError>>,
     ),
+    ReplaceDrawable(DrawObjectKey, Box<dyn Drawable>),
     RemoveDrawable(DrawObjectKey),
     RegisterSpriteFromSource(String, std::sync::mpsc::Sender<Result<SpriteId, AppError>>),
     RenderDrawable(DrawObjectKey),

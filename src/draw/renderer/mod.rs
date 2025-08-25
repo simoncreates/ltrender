@@ -150,6 +150,40 @@ where
         }
     }
 
+    pub fn replace_drawable(
+        &mut self,
+        id: DrawObjectKey,
+        drawable: Box<dyn Drawable>,
+    ) -> Result<(), DrawError> {
+        {
+            if let Some(s) = self.screens.get_mut(&id.screen_id) {
+                s.deregister_drawable(id.object_id);
+            } else {
+                return Err(DrawError::DisplayKeyNotFound(id.screen_id));
+            }
+        }
+
+        self.remove_drawable(id)?;
+
+        if let Some(obj) = self.obj_library.get_mut(&id) {
+            obj.drawable = drawable;
+        }
+
+        {
+            if let Some(s) = self.screens.get_mut(&id.screen_id) {
+                s.register_drawable(id.object_id, &self.obj_library);
+                s.render_drawable(
+                    id.object_id,
+                    &mut self.screen_buffer,
+                    &mut self.obj_library,
+                    &self.sprites,
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     /// checks if any of the currently existing drawobjects should be removed,
     /// because its duration on screen has ended
     pub fn check_if_object_lifetime_ended(&mut self) -> Result<(), DrawError> {
