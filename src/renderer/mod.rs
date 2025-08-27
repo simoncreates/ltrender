@@ -177,7 +177,7 @@ where
                     &mut self.screen_buffer,
                     &mut self.obj_library,
                     &self.sprites,
-                );
+                )?;
             }
         }
 
