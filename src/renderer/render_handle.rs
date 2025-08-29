@@ -1,7 +1,7 @@
 use std::{
     sync::mpsc::{self, Receiver, SyncSender},
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use common_stdx::{Point, Rect};

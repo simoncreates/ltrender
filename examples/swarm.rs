@@ -4,6 +4,7 @@ use crossterm::event::{Event, KeyCode, MouseEventKind, poll, read};
 use crossterm::terminal::size;
 use env_logger::Builder;
 use log::info;
+use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermScreenBuffer;
 use rand::Rng;
 use std::fs::File;
 use std::io::Write;
@@ -16,8 +17,7 @@ use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::AppError;
 use ltrender::renderer::RendererHandle;
 use ltrender::renderer::render_handle::RendererManager;
-use ltrender::terminal_buffer::screen_buffer::shaders::Grayscale;
-use ltrender::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
+use ltrender::terminal_buffer::buffer_and_celldrawer::shaders::Grayscale;
 use ltrender::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
@@ -191,7 +191,7 @@ pub fn main() -> Result<(), AppError> {
     init_logger("./organic_swarm.log")?;
 
     let (cols, rows) = size()?;
-    let (manager, mut r) = RendererManager::new::<DefaultScreenBuffer>((cols, rows), 600);
+    let (manager, mut r) = RendererManager::new::<CrosstermScreenBuffer>((cols, rows), 600);
     r.set_update_interval(16);
 
     // One screen spanning the whole terminal.

@@ -5,7 +5,7 @@ use crate::{
     drawable_register::ObjectLifetime,
     error::{AppError, DrawObjectBuilderError},
     renderer::RendererHandle,
-    terminal_buffer::{Drawable, screen_buffer::Shader},
+    terminal_buffer::{Drawable, buffer_and_celldrawer::Shader},
 };
 pub mod sprite_drawable_builder;
 pub use sprite_drawable_builder::SpriteDrawableBuilder;

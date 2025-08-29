@@ -5,15 +5,14 @@ use std::collections::HashMap;
 
 use crate::ScreenBuffer;
 use crate::drawable_register::ObjectLifetime;
+use crate::terminal_buffer::buffer_and_celldrawer::CrosstermScreenBuffer;
 use crate::terminal_buffer::drawable::Drawable;
-use crate::terminal_buffer::standard_buffers::crossterm_buffer::DefaultScreenBuffer;
 use crate::{
     DrawError, DrawObject, DrawObjectKey, DrawObjectLibrary, Screen, ScreenKey, SpriteEntry,
     SpriteRegistry, error::AppError,
 }; // bring the trait into scope
 
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 pub mod render_handle;
 pub use render_handle::RendererHandle;
 
@@ -24,7 +23,7 @@ pub enum RenderMode {
     Instant,
     Buffered,
 }
-pub struct Renderer<B = DefaultScreenBuffer>
+pub struct Renderer<B = CrosstermScreenBuffer>
 where
     B: ScreenBuffer,
 {
@@ -54,6 +53,7 @@ where
         Renderer {
             obj_library: DrawObjectLibrary::new(),
             screens: HashMap::new(),
+
             screen_buffer: B::new(size),
             sprites: SpriteRegistry::new(),
             render_mode: RenderMode::Buffered,

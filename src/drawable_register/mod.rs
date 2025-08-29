@@ -1,6 +1,6 @@
 use crate::{
     ObjectId, ScreenKey,
-    terminal_buffer::{Drawable, screen_buffer::Shader},
+    terminal_buffer::{Drawable, buffer_and_celldrawer::Shader},
 };
 use std::{
     collections::HashMap,

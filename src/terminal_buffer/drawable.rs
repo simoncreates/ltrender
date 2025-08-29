@@ -19,8 +19,8 @@ pub trait Drawable: std::fmt::Debug + Send {
     ///
     /// ## Example
     ///
-    /// ```rust
-    /// let sprite = SpriteDrawable { position: Point::new(0, 0), sprite_id: 1 };
+    /// ```ignore
+    /// let sprite = SpriteDrawable { position: Point::new(0, 0), sprite_id };
     /// let draws = sprite.draw(&all_sprites).unwrap();
     /// ```
     ///

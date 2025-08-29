@@ -24,3 +24,21 @@ pub use drawable_register::{DrawObject, DrawObjectKey, DrawObjectLibrary};
 
 pub mod draw_object_builder;
 pub use draw_object_builder::DrawObjectBuilder;
+
+// for testing purposes only
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+
+use crate::terminal_buffer::buffer_and_celldrawer::standard_buffers::test_buffer::TerminalContentInformation;
+
+static TEST_DATA: Lazy<Mutex<Option<TerminalContentInformation>>> = Lazy::new(|| Mutex::new(None));
+
+pub fn set_test_data(data: TerminalContentInformation) {
+    let mut guard = TEST_DATA.lock().unwrap();
+    *guard = Some(data);
+}
+
+pub fn get_test_data() -> Option<TerminalContentInformation> {
+    let guard = TEST_DATA.lock().unwrap();
+    guard.clone()
+}

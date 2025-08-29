@@ -1,57 +1,20 @@
 use crate::{
-    DrawError, DrawObject, ObjectId, SpriteRegistry, UpdateInterval, UpdateIntervalHandler,
-    terminal_buffer::{CharacterInfo, CharacterInfoList, drawable::BasicDraw},
+    DrawError, DrawObject, ObjectId, SpriteRegistry, UpdateInterval,
+    terminal_buffer::{
+        CellDrawer, CharacterInfo, CharacterInfoList, ScreenBufferCore, drawable::BasicDraw,
+    },
     update_interval_handler::UpdateIntervalCreator,
 };
 use common_stdx::Rect;
-use log::info;
-
 use std::{collections::HashMap, fmt::Debug};
 
 use ascii_assets::Color;
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
 
-pub mod default;
-pub mod shaders;
-pub use shaders::Shader;
-
-/// Trait that describes how to write a string of chars
-pub trait CellDrawer: Debug {
-    /// Write a string at an absolute position.
-    /// also used for drawing single character
-    fn set_string(&mut self, batch: BatchDrawInfo);
-
-    /// Flush any buffered output to the terminal, or any other output that you might prefer
-    fn flush(&mut self) -> Result<(), DrawError>;
-}
-
-/// Trait that contains all internal state required by a screen buffer.
-pub trait ScreenBufferCore: Sized + Debug {
-    /// Return a mutable reference to the per‑cell info list.
-    fn cell_info_mut(&mut self) -> &mut Vec<CharacterInfoList>;
-
-    /// Return a mutable reference to the interval handler.
-    fn intervals_mut(&mut self) -> &mut UpdateIntervalHandler;
-
-    /// Current terminal size (width, height).
-    fn size(&self) -> (u16, u16);
-
-    // helpers
-
-    fn merge_creator(&mut self, creator: UpdateIntervalCreator) {
-        self.intervals_mut().merge_creator(creator);
-    }
-
-    /// Mark the whole screen as dirty
-    fn invalidate_entire_screen(&mut self) {
-        self.intervals_mut().invalidate_entire_screen();
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CellDrawerCommand {
-    SetString(BatchDrawInfo),
+    SetString(BatchDrawInfo, (u16, u16)),
     Flush,
 }
 
@@ -69,7 +32,7 @@ pub struct BatchDrawInfo {
     pub segments: Vec<BatchSegment>,
 }
 
-/// public API that combines the core bookkeeping with the drawing layer
+/// Public API that combines the core bookkeeping with the drawing layer
 pub trait ScreenBuffer: ScreenBufferCore {
     fn new(size: (u16, u16)) -> Self
     where
@@ -244,7 +207,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
 
             if let Err(e) = self
                 .drawer_sender()
-                .send(CellDrawerCommand::SetString(batch))
+                .send(CellDrawerCommand::SetString(batch, self.size()))
             {
                 log::error!("Failed to send SetString to drawer thread: {}", e);
             }

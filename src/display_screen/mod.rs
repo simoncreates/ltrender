@@ -1,9 +1,5 @@
-use crate::{
-    DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
-    drawable_register::ObjectLifetime,
-};
+use crate::{DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry};
 use common_stdx::Rect;
-use log::info;
 pub type ScreenKey = usize;
 
 #[derive(Debug)]
