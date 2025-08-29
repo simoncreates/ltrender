@@ -19,6 +19,37 @@ use std::io::Write;
 use std::time::{Duration, Instant};
 use std::{panic, thread, u16};
 
+fn create_first_frame() -> Vec<TerminalChar> {
+    vec![
+        TerminalChar {
+            chr: 'A',
+            fg_color: Some(Color {
+                rgb: (255, 0, 0),
+                reset: false,
+            }),
+            bg_color: None,
+        },
+        TerminalChar {
+            chr: 'B',
+            fg_color: None,
+            bg_color: Some(Color {
+                rgb: (0, 255, 0),
+                reset: false,
+            }),
+        },
+        TerminalChar {
+            chr: 'C',
+            fg_color: None,
+            bg_color: None,
+        },
+        TerminalChar {
+            chr: 'D',
+            fg_color: None,
+            bg_color: None,
+        },
+    ]
+}
+
 #[test]
 fn video_render_test() -> Result<(), AppError> {
     //this hook is made by chatty
@@ -42,9 +73,11 @@ fn video_render_test() -> Result<(), AppError> {
 
     ltrender::init_terminal()?;
     init_logger("./video_test.log")?;
-    generate_sprites()?;
+    let ref_frame = create_first_frame();
+    let sprite_size = generate_sprites(ref_frame.clone())?;
 
     let (cols, rows) = size()?;
+    info!("screen size: {:?}", (cols, rows));
     let (manager, mut r) = RendererManager::new::<TestScreenBuffer>((cols, rows), 600);
     r.set_render_mode(ltrender::renderer::RenderMode::Buffered);
     r.set_update_interval(16);
@@ -85,11 +118,11 @@ fn video_render_test() -> Result<(), AppError> {
 
     // rendering and expecting to see the video
     r.render_frame();
-    test_if_video_exist(Point { x: 0, y: 0 });
+    test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
 
     // video should be removed, only after render frame has been called
     r.explicit_remove_drawable(obj_id);
-    test_if_video_exist(Point { x: 0, y: 0 });
+    test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
     r.render_frame();
 
     // expecting video to be removed
@@ -98,14 +131,14 @@ fn video_render_test() -> Result<(), AppError> {
     // rendering again
     r.render_drawable(obj_id);
     r.render_frame();
-    test_if_video_exist(Point { x: 0, y: 0 });
+    test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
 
     // changing the screen area, should only create change on the screen, after render frame has been called
     r.change_screen_area(screen, Rect::from_coords(1, 1, 20, 20));
-    test_if_video_exist(Point { x: 0, y: 0 });
+    test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
     // video should now be at 1,1
     r.render_frame();
-    test_if_video_exist(Point { x: 1, y: 1 });
+    test_if_video_exist(Point { x: 1, y: 1 }, ref_frame.clone(), sprite_size);
 
     //now adding a rect on a screen below the video, then moving it above
     // using 1,1 as position, since the video is also there
@@ -125,10 +158,10 @@ fn video_render_test() -> Result<(), AppError> {
         .build(&mut r)?;
 
     // now the video should still be visible at 1,1
-    test_if_video_exist(Point { x: 1, y: 1 });
+    test_if_video_exist(Point { x: 1, y: 1 }, ref_frame.clone(), sprite_size);
     r.render_frame();
     // and now still
-    test_if_video_exist(Point { x: 1, y: 1 });
+    test_if_video_exist(Point { x: 1, y: 1 }, ref_frame.clone(), sprite_size);
 
     // changing the layer, now the rect should be above
     r.change_screen_layer(rect_screen, 10);
@@ -266,18 +299,38 @@ fn expect_no_data() {
 }
 
 #[track_caller]
-fn test_if_video_exist(point: Point<u16>) {
+fn test_if_video_exist(
+    point: Point<u16>,
+    expected_frame: Vec<TerminalChar>,
+    size_of_frame: (u16, u16),
+) {
     let opt_data = wait_for_test_data(10);
-    if opt_data.is_some() {
-        let expected = Some(TerminalChar {
-            chr: 'A',
-            fg_color: Some(Color {
-                rgb: (255, 0, 0),
-                reset: false,
-            }),
-            bg_color: None,
-        });
-        test_if_eq_at_pos(point, expected);
+    if let Some(_data) = opt_data {
+        let expected_len = size_of_frame.0 * size_of_frame.1;
+        if expected_len as usize != expected_frame.len() {
+            panic!(
+                "expected frame size {}x{} = {}, but expected_frame.len() is {}",
+                size_of_frame.0,
+                size_of_frame.1,
+                expected_len,
+                expected_frame.len()
+            );
+        }
+
+        for frame_y in 0..size_of_frame.1 {
+            for frame_x in 0..size_of_frame.0 {
+                let screen_pos = Point {
+                    x: point.x + frame_x,
+                    y: point.y + frame_y,
+                };
+                let frame_idx = frame_y * size_of_frame.0 + frame_x;
+                let expected_char = expected_frame
+                    .get(frame_idx as usize)
+                    .copied()
+                    .expect("expected_frame indexing out of bounds");
+                test_if_eq_at_pos(screen_pos, Some(expected_char));
+            }
+        }
     } else {
         panic!(
             "timed out waiting for TerminalContentInformation while expecting video. Current snapshot: {}",
@@ -308,37 +361,9 @@ fn init_logger(path: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn generate_sprites() -> Result<(), DrawError> {
+pub fn generate_sprites(frame1: Vec<TerminalChar>) -> Result<(u16, u16), DrawError> {
     let width = 2;
     let height = 2;
-    let frame1 = vec![
-        TerminalChar {
-            chr: 'A',
-            fg_color: Some(Color {
-                rgb: (255, 0, 0),
-                reset: false,
-            }),
-            bg_color: None,
-        },
-        TerminalChar {
-            chr: 'B',
-            fg_color: None,
-            bg_color: Some(Color {
-                rgb: (0, 255, 0),
-                reset: false,
-            }),
-        },
-        TerminalChar {
-            chr: 'C',
-            fg_color: None,
-            bg_color: None,
-        },
-        TerminalChar {
-            chr: 'D',
-            fg_color: None,
-            bg_color: None,
-        },
-    ];
 
     let frame2 = vec![
         TerminalChar {
@@ -382,5 +407,5 @@ pub fn generate_sprites() -> Result<(), DrawError> {
 
     let path = "assets/debugging/test_video.ascv";
     video.write_to_file(path)?;
-    Ok(())
+    Ok((width, height))
 }

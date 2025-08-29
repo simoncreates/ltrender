@@ -57,19 +57,12 @@ impl CellDrawer for TestCellDrawer {
         let mut current_pos =
             (size.0 * batch.y + batch.start_x).clamp(usize::MIN as u16, usize::MAX as u16) as usize;
 
-        let mut current_fg: Option<Color> = None;
-        let mut current_bg: Option<Color> = None;
-
         // prefilling content of the temp_screen, to avoid writing out of bounds
         self.temp_screen.resize_content(size, None);
 
         for seg in &batch.segments {
-            if let Some(fg) = seg.fg_color {
-                current_fg = Some(fg)
-            }
-            if let Some(bg) = seg.bg_color {
-                current_bg = Some(bg)
-            }
+            let current_fg = seg.fg_color;
+            let current_bg = seg.bg_color;
             self.temp_screen.amount_of_draw_commands += 1;
             info!(
                 "setting string: {}, with colours: {:?}, {:?} at position {}",

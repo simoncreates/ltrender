@@ -1,37 +1,59 @@
+[INFO] screen size: (280, 70)
 [INFO] setting string: A, with colours: Some(Color { reset: false, rgb: (255, 0, 0) }), None at position 0
 [INFO] setting string: B, with colours: None, Some(Color { reset: false, rgb: (0, 255, 0) }) at position 1
 [INFO] setting string:                  , with colours: None, None at position 2
-[INFO] setting string: CD                 , with colours: None, None at position 318
-[INFO] setting string:                    , with colours: None, None at position 636
+[INFO] setting string: CD                 , with colours: None, None at position 280
+[INFO] setting string:                    , with colours: None, None at position 560
 [INFO] testing if Some(TerminalChar { chr: 'A', fg_color: Some(Color { reset: false, rgb: (255, 0, 0) }), bg_color: None }) exists at position Point { x: 0, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'B', fg_color: None, bg_color: Some(Color { reset: false, rgb: (0, 255, 0) }) }) exists at position Point { x: 1, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'C', fg_color: None, bg_color: None }) exists at position Point { x: 0, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'D', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 1 }
 [INFO] testing if Some(TerminalChar { chr: 'A', fg_color: Some(Color { reset: false, rgb: (255, 0, 0) }), bg_color: None }) exists at position Point { x: 0, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'B', fg_color: None, bg_color: Some(Color { reset: false, rgb: (0, 255, 0) }) }) exists at position Point { x: 1, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'C', fg_color: None, bg_color: None }) exists at position Point { x: 0, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'D', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 1 }
 [INFO] testing if None exists at position Point { x: 0, y: 0 }
 [INFO] setting string:                    , with colours: None, None at position 0
-[INFO] setting string:                    , with colours: None, None at position 318
-[INFO] setting string:                    , with colours: None, None at position 636
+[INFO] setting string:                    , with colours: None, None at position 280
+[INFO] setting string:                    , with colours: None, None at position 560
 [INFO] setting string: A, with colours: Some(Color { reset: false, rgb: (255, 0, 0) }), None at position 0
 [INFO] setting string: B, with colours: None, Some(Color { reset: false, rgb: (0, 255, 0) }) at position 1
 [INFO] setting string:                  , with colours: None, None at position 2
-[INFO] setting string: CD                 , with colours: None, None at position 318
-[INFO] setting string:                    , with colours: None, None at position 636
+[INFO] setting string: CD                 , with colours: None, None at position 280
+[INFO] setting string:                    , with colours: None, None at position 560
 [INFO] testing if Some(TerminalChar { chr: 'A', fg_color: Some(Color { reset: false, rgb: (255, 0, 0) }), bg_color: None }) exists at position Point { x: 0, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'B', fg_color: None, bg_color: Some(Color { reset: false, rgb: (0, 255, 0) }) }) exists at position Point { x: 1, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'C', fg_color: None, bg_color: None }) exists at position Point { x: 0, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'D', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 1 }
 [INFO] testing if Some(TerminalChar { chr: 'A', fg_color: Some(Color { reset: false, rgb: (255, 0, 0) }), bg_color: None }) exists at position Point { x: 0, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'B', fg_color: None, bg_color: Some(Color { reset: false, rgb: (0, 255, 0) }) }) exists at position Point { x: 1, y: 0 }
+[INFO] testing if Some(TerminalChar { chr: 'C', fg_color: None, bg_color: None }) exists at position Point { x: 0, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'D', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 1 }
 [INFO] setting string:                    , with colours: None, None at position 0
-[INFO] setting string:  , with colours: None, None at position 318
-[INFO] setting string: A, with colours: Some(Color { reset: false, rgb: (255, 0, 0) }), None at position 319
-[INFO] setting string: B, with colours: None, Some(Color { reset: false, rgb: (0, 255, 0) }) at position 320
-[INFO] setting string:                  , with colours: None, None at position 321
-[INFO] setting string:  CD                 , with colours: None, None at position 636
-[INFO] setting string:                    , with colours: None, None at position 955
+[INFO] setting string:  , with colours: None, None at position 280
+[INFO] setting string: A, with colours: Some(Color { reset: false, rgb: (255, 0, 0) }), None at position 281
+[INFO] setting string: B, with colours: None, Some(Color { reset: false, rgb: (0, 255, 0) }) at position 282
+[INFO] setting string:                  , with colours: None, None at position 283
+[INFO] setting string:  CD                 , with colours: None, None at position 560
+[INFO] setting string:                    , with colours: None, None at position 841
 [INFO] testing if Some(TerminalChar { chr: 'A', fg_color: Some(Color { reset: false, rgb: (255, 0, 0) }), bg_color: None }) exists at position Point { x: 1, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'B', fg_color: None, bg_color: Some(Color { reset: false, rgb: (0, 255, 0) }) }) exists at position Point { x: 2, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'C', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 2 }
+[INFO] testing if Some(TerminalChar { chr: 'D', fg_color: None, bg_color: None }) exists at position Point { x: 2, y: 2 }
 [INFO] testing if Some(TerminalChar { chr: 'A', fg_color: Some(Color { reset: false, rgb: (255, 0, 0) }), bg_color: None }) exists at position Point { x: 1, y: 1 }
-[INFO] setting string: A, with colours: Some(Color { reset: false, rgb: (255, 0, 0) }), None at position 319
-[INFO] setting string: B, with colours: None, Some(Color { reset: false, rgb: (0, 255, 0) }) at position 320
-[INFO] setting string:                  , with colours: None, None at position 321
-[INFO] setting string: CD                 , with colours: None, None at position 637
-[INFO] setting string:                    , with colours: None, None at position 955
+[INFO] testing if Some(TerminalChar { chr: 'B', fg_color: None, bg_color: Some(Color { reset: false, rgb: (0, 255, 0) }) }) exists at position Point { x: 2, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'C', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 2 }
+[INFO] testing if Some(TerminalChar { chr: 'D', fg_color: None, bg_color: None }) exists at position Point { x: 2, y: 2 }
+[INFO] setting string: A, with colours: Some(Color { reset: false, rgb: (255, 0, 0) }), None at position 281
+[INFO] setting string: B, with colours: None, Some(Color { reset: false, rgb: (0, 255, 0) }) at position 282
+[INFO] setting string:                  , with colours: None, None at position 283
+[INFO] setting string: CD                 , with colours: None, None at position 561
+[INFO] setting string:                    , with colours: None, None at position 841
 [INFO] testing if Some(TerminalChar { chr: 'A', fg_color: Some(Color { reset: false, rgb: (255, 0, 0) }), bg_color: None }) exists at position Point { x: 1, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'B', fg_color: None, bg_color: Some(Color { reset: false, rgb: (0, 255, 0) }) }) exists at position Point { x: 2, y: 1 }
+[INFO] testing if Some(TerminalChar { chr: 'C', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 2 }
+[INFO] testing if Some(TerminalChar { chr: 'D', fg_color: None, bg_color: None }) exists at position Point { x: 2, y: 2 }
 [INFO] testing if Some(TerminalChar { chr: '#', fg_color: None, bg_color: None }) exists at position Point { x: 1, y: 1 }
-[INFO] setting string: ##                 , with colours: None, None at position 319
-[INFO] setting string: ##                 , with colours: None, None at position 637
-[INFO] setting string:                    , with colours: None, None at position 955
+[INFO] setting string: ##                 , with colours: None, None at position 281
+[INFO] setting string: ##                 , with colours: None, None at position 561
+[INFO] setting string:                    , with colours: None, None at position 841
