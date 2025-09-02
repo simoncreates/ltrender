@@ -4,7 +4,8 @@ use crossterm::event::{Event, KeyCode, MouseEventKind, poll, read};
 use crossterm::terminal::size;
 use env_logger::Builder;
 use log::info;
-use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermScreenBuffer;
+use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermCellDrawer;
+use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use rand::Rng;
 use std::fs::File;
 use std::io::Write;
@@ -191,7 +192,8 @@ pub fn main() -> Result<(), AppError> {
     init_logger("./organic_swarm.log")?;
 
     let (cols, rows) = size()?;
-    let (manager, mut r) = RendererManager::new::<CrosstermScreenBuffer>((cols, rows), 600);
+    let (manager, mut r) =
+        RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 600);
     r.set_update_interval(16);
 
     // One screen spanning the whole terminal.
@@ -261,7 +263,6 @@ pub fn main() -> Result<(), AppError> {
 
     // Input and timing state.
     let start = Instant::now();
-    let mut last_tick = Instant::now();
     let mut mouse = MouseState {
         x: (cols / 2) as i32,
         y: (rows / 2) as i32,
@@ -278,8 +279,7 @@ pub fn main() -> Result<(), AppError> {
 
     while running {
         let now = Instant::now();
-        let dt = now.duration_since(last_tick).as_secs_f64().min(0.05);
-        last_tick = now;
+        let last_tick = now;
 
         // Input ----------------------------------------------------
         if poll(Duration::from_millis(0))? {
@@ -419,7 +419,7 @@ pub fn main() -> Result<(), AppError> {
                 mouse.left as u8,
                 mouse.right as u8
             );
-            let mut hud = text_drawable::TextDrawable {
+            let hud = text_drawable::TextDrawable {
                 area: Rect::from_coords(1, 1, 60, 6),
                 lines: vec![text_drawable::LineInfo {
                     text: txt,

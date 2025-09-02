@@ -29,7 +29,7 @@ pub use draw_object_builder::DrawObjectBuilder;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-use crate::terminal_buffer::buffer_and_celldrawer::standard_buffers::test_buffer::TerminalContentInformation;
+use crate::terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_buffer::TerminalContentInformation;
 
 static TEST_DATA: Lazy<Mutex<Option<TerminalContentInformation>>> = Lazy::new(|| Mutex::new(None));
 

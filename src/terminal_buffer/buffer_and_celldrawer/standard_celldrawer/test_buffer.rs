@@ -1,15 +1,14 @@
-use std::collections::HashMap;
-use std::{mem, sync::mpsc::Receiver};
+use std::sync::mpsc::Receiver;
 
 use crate::set_test_data;
 use crate::{
-    DrawError, ScreenBuffer, ScreenBufferNew, UpdateIntervalHandler, define_screen_buffer,
+    DrawError,
     terminal_buffer::{
-        CellDrawer, CharacterInfoList, ScreenBufferCore,
+        CellDrawer,
         buffer_and_celldrawer::{BatchDrawInfo, screen_buffer::CellDrawerCommand},
     },
 };
-use ascii_assets::{self, Color, TerminalChar};
+use ascii_assets::{self, TerminalChar};
 use log::info;
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -33,7 +32,6 @@ impl TerminalContentInformation {
     }
 }
 
-define_screen_buffer!(TestScreenBuffer, TestCellDrawer);
 #[derive(Debug)]
 pub struct TestCellDrawer {
     rx: Receiver<CellDrawerCommand>,
@@ -51,6 +49,10 @@ impl CellDrawer for TestCellDrawer {
                 amount_of_draw_commands: 0,
             },
         }
+    }
+
+    fn recv(&self) -> Result<CellDrawerCommand, std::sync::mpsc::RecvError> {
+        self.rx.recv()
     }
 
     fn set_string(&mut self, batch: BatchDrawInfo, size: (u16, u16)) {

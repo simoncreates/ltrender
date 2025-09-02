@@ -1,13 +1,12 @@
 use std::{
-    collections::HashMap,
     io::{BufWriter, Stdout, Write, stdout},
     sync::mpsc::Receiver,
 };
 
 use crate::{
-    DrawError, ScreenBuffer, ScreenBufferNew, UpdateIntervalHandler, define_screen_buffer,
+    DrawError,
     terminal_buffer::{
-        CellDrawer, CharacterInfoList, ScreenBufferCore,
+        CellDrawer,
         buffer_and_celldrawer::{BatchDrawInfo, screen_buffer::CellDrawerCommand},
     },
 };
@@ -15,7 +14,6 @@ use ascii_assets;
 use crossterm::style::Color;
 use std::fmt::Write as FmtWrite;
 
-define_screen_buffer!(CrosstermScreenBuffer, CrosstermCellDrawer);
 #[derive(Debug)]
 pub struct CrosstermCellDrawer {
     rx: Receiver<CellDrawerCommand>,
@@ -28,6 +26,10 @@ impl CellDrawer for CrosstermCellDrawer {
             out: BufWriter::new(stdout()),
             rx,
         }
+    }
+
+    fn recv(&self) -> Result<CellDrawerCommand, std::sync::mpsc::RecvError> {
+        self.rx.recv()
     }
 
     fn set_string(&mut self, batch: BatchDrawInfo, _size: (u16, u16)) {

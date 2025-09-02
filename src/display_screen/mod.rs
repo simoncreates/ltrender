@@ -1,4 +1,7 @@
-use crate::{DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry};
+use crate::{
+    DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
+    terminal_buffer::CellDrawer,
+};
 use common_stdx::Rect;
 pub type ScreenKey = usize;
 
@@ -52,15 +55,16 @@ impl Screen {
         }
     }
     /// render a drawable to the screen
-    pub fn render_drawable<T>(
+    pub fn render_drawable<B>(
         &mut self,
         object_id: ObjectId,
-        screen_buffer: &mut T,
+        screen_buffer: &mut B,
         obj_library: &mut DrawObjectLibrary,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError>
     where
-        T: ScreenBuffer,
+        B: ScreenBuffer,
+        B::Drawer: CellDrawer,
     {
         if !self.draw_objects.contains(&object_id) {
             return Ok(());
@@ -82,15 +86,16 @@ impl Screen {
         Ok(())
     }
     /// Remove a drawable object from the screen.
-    pub fn remove_drawable<T>(
+    pub fn remove_drawable<B>(
         &mut self,
         object_id: ObjectId,
-        screen_buffer: &mut T,
+        screen_buffer: &mut B,
         obj_library: &mut DrawObjectLibrary,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError>
     where
-        T: ScreenBuffer,
+        B: ScreenBuffer,
+        B::Drawer: CellDrawer,
     {
         let opt_obj = obj_library.get_mut(&DrawObjectKey {
             screen_id: self.id,
@@ -107,14 +112,15 @@ impl Screen {
         Ok(())
     }
 
-    pub fn remove_all<T>(
+    pub fn remove_all<B>(
         &mut self,
-        screen_buffer: &mut T,
+        screen_buffer: &mut B,
         obj_library: &mut DrawObjectLibrary,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError>
     where
-        T: ScreenBuffer,
+        B: ScreenBuffer,
+        B::Drawer: CellDrawer,
     {
         let obj_ids: Vec<_> = self.draw_objects.to_vec();
         for obj_id in obj_ids {
@@ -125,14 +131,15 @@ impl Screen {
     }
 
     /// uncoditionally renders all owned drawables
-    pub fn render_all<T>(
+    pub fn render_all<B>(
         &mut self,
-        screen_buffer: &mut T,
+        screen_buffer: &mut B,
         obj_library: &mut DrawObjectLibrary,
         sprites: &SpriteRegistry,
     ) -> Result<(), DrawError>
     where
-        T: ScreenBuffer,
+        B: ScreenBuffer,
+        B::Drawer: CellDrawer,
     {
         let obj_ids: Vec<_> = self.draw_objects.to_vec();
         for obj_id in obj_ids {

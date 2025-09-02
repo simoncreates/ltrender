@@ -1,16 +1,15 @@
-use ascii_assets::AsciiVideo;
-use common_stdx::{Point, Rect};
-use log::info;
-use std::collections::HashMap;
-
 use crate::ScreenBuffer;
 use crate::drawable_register::ObjectLifetime;
-use crate::terminal_buffer::buffer_and_celldrawer::CrosstermScreenBuffer;
+use crate::terminal_buffer::CellDrawer;
 use crate::terminal_buffer::drawable::Drawable;
 use crate::{
     DrawError, DrawObject, DrawObjectKey, DrawObjectLibrary, Screen, ScreenKey, SpriteEntry,
     SpriteRegistry, error::AppError,
-}; // bring the trait into scope
+};
+use ascii_assets::AsciiVideo;
+use common_stdx::{Point, Rect};
+use log::info;
+use std::collections::HashMap; // bring the trait into scope
 
 use std::time::Instant;
 pub mod render_handle;
@@ -23,9 +22,10 @@ pub enum RenderMode {
     Instant,
     Buffered,
 }
-pub struct Renderer<B = CrosstermScreenBuffer>
+pub struct Renderer<B>
 where
     B: ScreenBuffer,
+    B::Drawer: CellDrawer,
 {
     screens: HashMap<ScreenKey, Screen>,
     obj_library: DrawObjectLibrary,
@@ -38,6 +38,7 @@ where
 impl<B> Renderer<B>
 where
     B: ScreenBuffer,
+    B::Drawer: CellDrawer,
 {
     pub fn set_render_mode(&mut self, mode: RenderMode) {
         self.render_mode = mode;
@@ -50,10 +51,9 @@ where
 
     /// Create a new renderer with an initial terminal size.
     pub fn create_renderer(size: (u16, u16)) -> Self {
-        Renderer {
+        Renderer::<B> {
             obj_library: DrawObjectLibrary::new(),
             screens: HashMap::new(),
-
             screen_buffer: B::new(size),
             sprites: SpriteRegistry::new(),
             render_mode: RenderMode::Buffered,

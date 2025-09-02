@@ -34,6 +34,7 @@ pub struct BatchDrawInfo {
 
 /// Public API that combines the core bookkeeping with the drawing layer
 pub trait ScreenBuffer: ScreenBufferCore {
+    type Drawer: CellDrawer + Send + 'static;
     fn new(size: (u16, u16)) -> Self
     where
         Self: Sized;
@@ -159,14 +160,12 @@ pub trait ScreenBuffer: ScreenBufferCore {
             };
             let mut current_segment: Option<BatchSegment> = None;
 
-            for idx in start..end {
+            for (idx, cell) in cells[start..end].iter().enumerate() {
                 let y = (idx / cols as usize) as u16;
                 let x = (idx % cols as usize) as u16;
 
-                let chr_to_write = if let Some(ci_opt) = cells[idx]
-                    .info
-                    .values()
-                    .max_by_key(|c| (c.screen_layer, c.layer))
+                let chr_to_write = if let Some(ci_opt) =
+                    cell.info.values().max_by_key(|c| (c.screen_layer, c.layer))
                 {
                     ci_opt.chr
                 } else {

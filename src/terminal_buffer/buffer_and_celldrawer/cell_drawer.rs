@@ -15,4 +15,6 @@ pub trait CellDrawer: Debug {
 
     /// Flush any buffered output to the terminal, or any other output that you might prefer
     fn flush(&mut self) -> Result<(), DrawError>;
+
+    fn recv(&self) -> Result<CellDrawerCommand, std::sync::mpsc::RecvError>;
 }

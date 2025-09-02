@@ -7,8 +7,9 @@ use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::{AppError, DrawError};
 use ltrender::renderer::render_handle::RendererManager;
-use ltrender::terminal_buffer::buffer_and_celldrawer::standard_buffers::TestScreenBuffer;
-use ltrender::terminal_buffer::buffer_and_celldrawer::standard_buffers::test_buffer::TerminalContentInformation;
+use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
+use ltrender::terminal_buffer::buffer_and_celldrawer::TestCellDrawer;
+use ltrender::terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_buffer::TerminalContentInformation;
 use ltrender::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
@@ -17,7 +18,7 @@ use ltrender::{DrawObjectBuilder, get_test_data};
 use std::fs::File;
 use std::io::Write;
 use std::time::{Duration, Instant};
-use std::{panic, thread, u16};
+use std::{panic, thread};
 
 fn create_first_frame() -> Vec<TerminalChar> {
     vec![
@@ -78,7 +79,8 @@ fn video_render_test() -> Result<(), AppError> {
 
     let (cols, rows) = size()?;
     info!("screen size: {:?}", (cols, rows));
-    let (manager, mut r) = RendererManager::new::<TestScreenBuffer>((cols, rows), 600);
+    let (manager, mut r) =
+        RendererManager::new::<DefaultScreenBuffer<TestCellDrawer>>((cols, rows), 600);
     r.set_render_mode(ltrender::renderer::RenderMode::Buffered);
     r.set_update_interval(16);
 
@@ -145,7 +147,8 @@ fn video_render_test() -> Result<(), AppError> {
     let border_style = TerminalChar::from_char('#');
 
     let rect_screen = r.create_screen(Rect::from_coords(1, 1, cols as i32, rows as i32), 0);
-    let rect_obj = DrawObjectBuilder::default()
+    // dropping, since the rect is drawnautomatically
+    let _ = DrawObjectBuilder::default()
         .add_lifetime(ObjectLifetime::ExplicitRemove)
         .layer(0)
         .rect_drawable(|r| {

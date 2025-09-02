@@ -8,7 +8,9 @@ use common_stdx::{Point, Rect};
 
 use crate::{
     DrawError, DrawObject, DrawObjectKey, Renderer, ScreenBuffer, ScreenKey, SpriteId,
-    error::AppError, renderer::RenderMode, terminal_buffer::Drawable,
+    error::AppError,
+    renderer::RenderMode,
+    terminal_buffer::{CellDrawer, Drawable},
 };
 
 #[derive(Clone, Debug)]
@@ -106,12 +108,13 @@ pub struct RendererManager {
 }
 
 impl RendererManager {
-    pub fn new<B: ScreenBuffer + 'static>(
-        size: (u16, u16),
-        buffer_size: usize,
-    ) -> (Self, RendererHandle) {
+    pub fn new<B>(size: (u16, u16), buffer_size: usize) -> (Self, RendererHandle)
+    where
+        B: ScreenBuffer + 'static,
+        B::Drawer: CellDrawer + Send + 'static,
+    {
         let (tx, rx) = mpsc::sync_channel(buffer_size);
-        let join_handle = run_renderer::<B>(size, rx);
+        let join_handle = run_renderer::<B>(size, rx); // <-- specify B here
         let checker_join_handle = run_object_lifetime_checker(tx.clone());
 
         let manager = RendererManager {
@@ -163,10 +166,11 @@ fn run_object_lifetime_checker(tx: SyncSender<RendererCommand>) -> thread::JoinH
     })
 }
 
-pub fn run_renderer<B: ScreenBuffer + 'static>(
-    size: (u16, u16),
-    rx: Receiver<RendererCommand>,
-) -> thread::JoinHandle<()> {
+pub fn run_renderer<B>(size: (u16, u16), rx: Receiver<RendererCommand>) -> thread::JoinHandle<()>
+where
+    B: ScreenBuffer + 'static,
+    B::Drawer: CellDrawer + 'static + Send,
+{
     thread::spawn(move || {
         let mut r = Renderer::<B>::create_renderer(size);
 
