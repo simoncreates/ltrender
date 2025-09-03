@@ -47,7 +47,7 @@ where
 
         // TODO: stop using a const channel_bound for screen buffer
         // let users define
-        let (drawer_tx, rx) = mpsc::sync_channel::<CellDrawerCommand>(100);
+        let (drawer_tx, rx) = mpsc::sync_channel::<CellDrawerCommand>(10000);
 
         // spawn a thread that owns the receiver and the writer
         let drawer_handle = thread::spawn(move || {

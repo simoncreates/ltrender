@@ -173,10 +173,10 @@ fn spawn_soft_wave(
                     let yf = y as f32 / size.1 as f32;
                     let w = ((xf * 10.0 + t).sin() + (yf * 7.0 - t * 0.7).cos()) * 0.5 + 0.5;
                     let ch = match w {
-                        w if w > 0.70 => Some(TerminalChar::from_char('⋅')),
+                        w if w > 0.70 => Some(TerminalChar::from_char(' ')),
                         w if w > 0.50 => Some(TerminalChar::from_char('‧')),
-                        w if w > 0.30 => Some(TerminalChar::from_char('•')),
-                        _ => Some(TerminalChar::with_fg(' ', Color::Grey)),
+                        w if w > 0.30 => Some(TerminalChar::from_char(' ')),
+                        _ => Some(TerminalChar::with_fg('.', Color::Grey)),
                     };
 
                     data.push(ch);
@@ -196,7 +196,7 @@ pub fn main() -> Result<(), AppError> {
 
     let (cols, rows) = size()?;
     let (manager, mut r) =
-        RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 1);
+        RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 100);
     r.set_update_interval(16);
 
     // One screen spanning the whole terminal.
@@ -444,7 +444,10 @@ pub fn main() -> Result<(), AppError> {
             r.replace_drawable(hud_id, Box::new(hud));
             r.render_drawable(hud_id);
         }
-        std::thread::sleep(Duration::from_millis(12) - frame_render_duration);
+        use std::time::Duration;
+        let target = Duration::from_millis(12);
+        let to_sleep = target.saturating_sub(frame_render_duration);
+        std::thread::sleep(to_sleep);
     }
 
     // cleanup
