@@ -160,7 +160,9 @@ pub trait ScreenBuffer: ScreenBufferCore {
             };
             let mut current_segment: Option<BatchSegment> = None;
 
-            for (idx, cell) in cells[start..end].iter().enumerate() {
+            let slice = &cells[start..end];
+            for (i, cell) in slice.iter().enumerate() {
+                let idx = start + i;
                 let y = (idx / cols as usize) as u16;
                 let x = (idx % cols as usize) as u16;
 

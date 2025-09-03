@@ -156,30 +156,33 @@ fn seeded_swarm(
     out
 }
 
-fn spawn_soft_wave(sender: SyncSender<StreamFrame>, ren: RendererHandle, key: DrawObjectKey) {
-    // A very lightweight background that breathes under the swarm.
-    const W: u16 = 64;
-    const H: u16 = 32;
+fn spawn_soft_wave(
+    sender: SyncSender<StreamFrame>,
+    ren: RendererHandle,
+    key: DrawObjectKey,
+    size: (u16, u16),
+) {
     std::thread::spawn(move || {
         let mut t = 0.0f32;
         loop {
             let mut data: Vec<Option<TerminalChar>> =
-                Vec::with_capacity((W as usize) * (H as usize));
-            for y in 0..H {
-                for x in 0..W {
-                    let xf = x as f32 / W as f32;
-                    let yf = y as f32 / H as f32;
+                Vec::with_capacity((size.0 as usize) * (size.1 as usize));
+            for y in 0..size.1 {
+                for x in 0..size.0 {
+                    let xf = x as f32 / size.1 as f32;
+                    let yf = y as f32 / size.1 as f32;
                     let w = ((xf * 10.0 + t).sin() + (yf * 7.0 - t * 0.7).cos()) * 0.5 + 0.5;
-                    let ch = match (w * 8.0) as i32 {
-                        0..=1 => Some(TerminalChar::from_char(' ')),
-                        2..=3 => Some(TerminalChar::from_char('.')),
-                        4..=5 => Some(TerminalChar::from_char('*')),
-                        _ => Some(TerminalChar::with_fg('@', Color::Grey)),
+                    let ch = match w {
+                        w if w > 0.70 => Some(TerminalChar::from_char('⋅')),
+                        w if w > 0.50 => Some(TerminalChar::from_char('‧')),
+                        w if w > 0.30 => Some(TerminalChar::from_char('•')),
+                        _ => Some(TerminalChar::with_fg(' ', Color::Grey)),
                     };
+
                     data.push(ch);
                 }
             }
-            let _ = sender.send(StreamFrame { data, size: (W, H) });
+            let _ = sender.send(StreamFrame { data, size });
             ren.render_drawable(key);
             std::thread::sleep(Duration::from_millis(40));
             t += 0.04;
@@ -193,14 +196,14 @@ pub fn main() -> Result<(), AppError> {
 
     let (cols, rows) = size()?;
     let (manager, mut r) =
-        RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 600);
+        RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 1);
     r.set_update_interval(16);
 
     // One screen spanning the whole terminal.
     let screen = r.create_screen(Rect::from_coords(0, 0, cols as i32, rows as i32), 5);
 
     // Gentle animated background (kept subtle by Grayscale shader on the sprite video).
-    let (tx, video_drawable) = make_videostream_drawable((8, 6), 1)?;
+    let (tx, video_drawable) = make_videostream_drawable((0, 0), 1)?;
     let video_id = DrawObjectBuilder::default()
         .layer(1)
         .screen(screen)
@@ -208,7 +211,7 @@ pub fn main() -> Result<(), AppError> {
         .shader(Grayscale)
         .add_lifetime(ObjectLifetime::ExplicitRemove)
         .build(&mut r)?;
-    spawn_soft_wave(tx, r.clone(), video_id);
+    spawn_soft_wave(tx, r.clone(), video_id, (cols, rows));
 
     // Optional: tiny sprite clock in the corner (if you have a .ascv around, otherwise harmless).
     if let Ok(sprite) =
@@ -272,15 +275,12 @@ pub fn main() -> Result<(), AppError> {
     };
     let mut running = true;
 
-    // Simple FPS reporter.
-    let mut frame_times: Vec<Duration> = Vec::with_capacity(300);
-    let mut last_report = Instant::now();
-    let mut frames = 0u32;
+    let mut render_start;
+    let mut fps_vec: Vec<f64> = Vec::new();
+    let mut time_since_last_fps_log = Instant::now();
 
     while running {
-        let now = Instant::now();
-        let last_tick = now;
-
+        render_start = Instant::now();
         // Input ----------------------------------------------------
         if poll(Duration::from_millis(0))? {
             match read()? {
@@ -397,21 +397,27 @@ pub fn main() -> Result<(), AppError> {
             r.render_drawable(a.id);
         }
 
-        // HUD live update (only redraw occasionally to reduce cost).
-        if show_hud && frames % 6 == 0 {
-            let fps = if frame_times.is_empty() {
-                0.0
-            } else {
-                1000.0
-                    / (frame_times
-                        .iter()
-                        .map(|d| d.as_millis() as f64)
-                        .sum::<f64>()
-                        / frame_times.len() as f64)
-                        .max(1.0)
-            };
+        r.render_frame();
+        let frame_render_duration = render_start.elapsed();
+
+        if show_hud {
+            let fps = 1.0 / frame_render_duration.as_secs_f64();
+            fps_vec.push(fps);
+
+            if time_since_last_fps_log.elapsed() > Duration::from_secs(5) {
+                let count = fps_vec.len();
+
+                if count > 0 {
+                    let sum: f64 = fps_vec.iter().sum();
+                    let avg_fps = sum / count as f64;
+                    info!("Avg FPS over the last 5s: {:.2} ", avg_fps);
+                }
+                fps_vec.clear();
+                time_since_last_fps_log = Instant::now();
+            }
+
             let txt = format!(
-                "fps ~{fps:.1} | agents: {} | force: {:.1} | mouse: ({}, {}) L:{} R:{}",
+                "time spent rendering frame: ~{fps:.1} | agents: {} | force: {:.1} | mouse: ({}, {}) L:{} R:{}",
                 agents.len(),
                 mouse.strength,
                 mouse.x,
@@ -419,8 +425,9 @@ pub fn main() -> Result<(), AppError> {
                 mouse.left as u8,
                 mouse.right as u8
             );
+
             let hud = text_drawable::TextDrawable {
-                area: Rect::from_coords(1, 1, 60, 6),
+                area: Rect::from_coords(1, 1, 100, 6),
                 lines: vec![text_drawable::LineInfo {
                     text: txt,
                     spans: vec![],
@@ -437,26 +444,7 @@ pub fn main() -> Result<(), AppError> {
             r.replace_drawable(hud_id, Box::new(hud));
             r.render_drawable(hud_id);
         }
-
-        // Maintain ~60 FPS if possible.
-        let frame = last_tick.elapsed();
-        frame_times.push(frame);
-        if frame_times.len() > 120 {
-            frame_times.remove(0);
-        }
-        frames = frames.wrapping_add(1);
-        if last_report.elapsed() > Duration::from_secs(1) {
-            let avg_ms = frame_times
-                .iter()
-                .map(|d| d.as_millis() as f64)
-                .sum::<f64>()
-                / frame_times.len().max(1) as f64;
-            info!("avg frame: {:.2}ms ({} samples)", avg_ms, frame_times.len());
-            last_report = Instant::now();
-        }
-
-        std::thread::sleep(Duration::from_millis(12));
-        r.render_frame();
+        std::thread::sleep(Duration::from_millis(12) - frame_render_duration);
     }
 
     // cleanup
