@@ -2,6 +2,9 @@
 name = "ltrender"
 version = "0.1.1"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/simoncreates/ltrender.git"
 
 [dependencies]
 crossterm     = "0.29.0"
@@ -13,3 +16,7 @@ thiserror     = "1.0"
 rand          = "0.8"
 dyn-clone     = "1"
 once_cell = "1.21.3"
+
+
+
+
