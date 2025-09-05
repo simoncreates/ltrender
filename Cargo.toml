@@ -4,6 +4,7 @@ version = "0.1.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+description = "a diff based terminal rendering engine"
 repository = "https://github.com/simoncreates/ltrender.git"
 
 [dependencies]
