@@ -1,4 +1,7 @@
-use crate::{DrawError, SpriteRegistry, update_interval_handler::UpdateIntervalCreator};
+use crate::{
+    DrawError, SpriteRegistry, terminal_buffer::BasicDrawCreator,
+    update_interval_handler::UpdateIntervalCreator,
+};
 
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
@@ -11,26 +14,13 @@ pub struct BasicDraw {
 }
 
 pub trait Drawable: std::fmt::Debug + Send {
-    /// Render this object into a list of terminal cells.
-    ///
-    /// The method should not perform any clipping, layering or buffer
-    /// management; it only needs to return the raw `(pos, chr)` pairs that
-    /// represent what would be drawn on screen.
-    ///
-    /// ## Example
-    ///
-    /// ```ignore
-    /// let sprite = SpriteDrawable { position: Point::new(0, 0), sprite_id };
-    /// let draws = sprite.draw(&all_sprites).unwrap();
-    /// ```
-    ///
     /// ### Info
     ///
     /// - Usually you will not need to use the SpriteRegistry
     /// - Also it is generally not recommended to mutate self during the draw function,
     ///   but has been added for flexibility reasons.
     ///
-    fn draw(&mut self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError>;
+    fn draw(&mut self, sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError>;
 
     /// Return an UpdateIntervalCreator
     ///

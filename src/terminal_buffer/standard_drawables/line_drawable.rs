@@ -2,11 +2,8 @@ use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 
 use crate::{
-    DrawError, SpriteRegistry,
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, DoublePointed},
-    },
+    DrawError, SpriteRegistry, error,
+    terminal_buffer::{self, BasicDrawCreator, Drawable, drawable::DoublePointed},
     update_interval_handler::UpdateIntervalCreator,
 };
 
@@ -48,44 +45,15 @@ impl Drawable for LineDrawable {
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }
-    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
-        let mut x0 = self.start.x;
-        let mut y0 = self.start.y;
-        let x1 = self.end.x;
-        let y1 = self.end.y;
+    fn draw(
+        &mut self,
+        _sprites: &SpriteRegistry,
+    ) -> std::result::Result<terminal_buffer::basic_draw_creator::BasicDrawCreator, error::DrawError>
+    {
+        let mut bd_creator = BasicDrawCreator::new();
+        bd_creator.draw_line(self.start, self.end, self.chr);
 
-        let dx = (x1 - x0).abs();
-        let dy = -(y1 - y0).abs();
-
-        let sx = if x0 < x1 { 1 } else { -1 };
-        let sy = if y0 < y1 { 1 } else { -1 };
-
-        let mut err = dx + dy;
-
-        let mut out: Vec<BasicDraw> = Vec::new();
-
-        loop {
-            out.push(BasicDraw {
-                pos: Point { x: x0, y: y0 },
-                chr: self.chr,
-            });
-
-            if x0 == x1 && y0 == y1 {
-                break;
-            }
-
-            let e2 = 2 * err;
-            if e2 >= dy {
-                err += dy;
-                x0 += sx;
-            }
-            if e2 <= dx {
-                err += dx;
-                y0 += sy;
-            }
-        }
-
-        Ok(out)
+        Ok(bd_creator)
     }
 
     fn bounding_iv(&self, _sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {

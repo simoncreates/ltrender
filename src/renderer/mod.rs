@@ -1,4 +1,5 @@
 use crate::ScreenBuffer;
+use crate::display_screen::ScreenAreaRect;
 use crate::drawable_register::ObjectLifetime;
 use crate::terminal_buffer::CellDrawer;
 use crate::terminal_buffer::drawable::Drawable;
@@ -7,7 +8,7 @@ use crate::{
     SpriteRegistry, error::AppError,
 };
 use ascii_assets::AsciiVideo;
-use common_stdx::{Point, Rect};
+use common_stdx::Point;
 use log::info;
 use std::collections::HashMap; // bring the trait into scope
 
@@ -33,6 +34,7 @@ where
     sprites: SpriteRegistry,
     pub render_mode: RenderMode,
     update_interval_expand_amount: usize,
+    terminal_size: (u16, u16),
 }
 
 impl<B> Renderer<B>
@@ -58,21 +60,22 @@ where
             sprites: SpriteRegistry::new(),
             render_mode: RenderMode::Buffered,
             update_interval_expand_amount: 50000,
+            terminal_size: size,
         }
     }
 
     /// Create a new screen and return its key.
-    pub fn create_screen(&mut self, rect: Rect<i32>, layer: usize) -> ScreenKey {
+    pub fn create_screen(&mut self, rect: ScreenAreaRect, layer: usize) -> ScreenKey {
         let new_id = self.generate_screen_key();
         self.screens
-            .insert(new_id, Screen::new(rect, layer, new_id));
+            .insert(new_id, Screen::new(rect, layer, new_id, self.terminal_size));
         new_id
     }
 
     pub fn change_screen_area(
         &mut self,
         screen_id: ScreenKey,
-        new_area: Rect<i32>,
+        new_area: ScreenAreaRect,
     ) -> Result<(), DrawError> {
         if let Some(s) = self.screens.get_mut(&screen_id) {
             s.remove_all(
@@ -191,7 +194,7 @@ where
         let mut expired_keys = Vec::new();
 
         for (screen_id, screen) in &self.screens {
-            for obj_id in &screen.all_listed_drawobjects() {
+            for obj_id in &screen.draw_objects {
                 let key = &DrawObjectKey {
                     screen_id: *screen_id,
                     object_id: *obj_id,
@@ -219,7 +222,7 @@ where
         let mut expired_keys = Vec::new();
 
         for (screen_id, screen) in &self.screens {
-            for obj_id in &screen.all_listed_drawobjects() {
+            for obj_id in &screen.draw_objects {
                 let key = &DrawObjectKey {
                     screen_id: *screen_id,
                     object_id: *obj_id,
@@ -284,6 +287,9 @@ where
 
     pub fn handle_resize(&mut self, new_size: (u16, u16)) -> Result<(), DrawError> {
         self.screen_buffer = B::new(new_size);
+        for screen in self.screens.values_mut() {
+            screen.terminal_size = self.terminal_size
+        }
         B::mark_all_dirty(&mut self.screen_buffer, new_size);
         self.render_all()?;
         Ok(())

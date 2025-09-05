@@ -1,9 +1,6 @@
 use crate::{
     DrawError, SpriteRegistry,
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, DoublePointed},
-    },
+    terminal_buffer::{BasicDrawCreator, Drawable, drawable::DoublePointed},
     update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;
@@ -47,9 +44,9 @@ impl Drawable for RectDrawable {
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }
-    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
         if self.rect.p1.x > self.rect.p2.x || self.rect.p1.y > self.rect.p2.y {
-            return Ok(Vec::new());
+            return Ok(BasicDrawCreator::new());
         }
 
         let expected = if self.fill_style.is_some() {
@@ -57,7 +54,9 @@ impl Drawable for RectDrawable {
         } else {
             2 * (self.rect.p2.x - self.rect.p1.x + 1 + self.rect.p2.y - self.rect.p1.y + 1)
         };
-        let mut out = Vec::with_capacity(expected as usize);
+
+        let cap = expected.clamp(0, i32::MAX) as usize;
+        let mut out = BasicDrawCreator::new_with_capacity(cap);
 
         for y in self.rect.p1.y..=self.rect.p2.y {
             for x in self.rect.p1.x..=self.rect.p2.x {
@@ -76,11 +75,7 @@ impl Drawable for RectDrawable {
                         None => continue,
                     }
                 };
-
-                out.push(BasicDraw {
-                    pos: Point { x, y },
-                    chr,
-                });
+                out.draw_char((x, y), chr);
             }
         }
 

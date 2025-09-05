@@ -2,10 +2,7 @@ use common_stdx::{Point, Rect};
 
 use crate::{
     DrawError, SpriteEntry, SpriteId, SpriteRegistry,
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, SinglePointed},
-    },
+    terminal_buffer::{BasicDrawCreator, Drawable, drawable::SinglePointed},
     update_interval_handler::UpdateIntervalCreator,
 };
 
@@ -83,7 +80,8 @@ impl SpriteDrawable {
         sprite: &SpriteEntry,
         frame_idx: usize,
         size: (usize, usize),
-    ) -> Result<Vec<BasicDraw>, DrawError> {
+        bd_creator: &mut BasicDrawCreator,
+    ) -> Result<(), DrawError> {
         let frame_data =
             sprite
                 .info
@@ -93,23 +91,19 @@ impl SpriteDrawable {
                     frame_idx as u16,
                 ))?;
 
-        let mut out = Vec::with_capacity(size.0 * size.1);
         let origin_x = self.position.x;
         let origin_y = self.position.y;
 
-        for (i, ch) in frame_data.iter().enumerate() {
+        for (i, chr) in frame_data.iter().enumerate() {
             let dx = (i % size.0) as i32;
             let dy = (i / size.0) as i32;
 
             let abs_x = origin_x.saturating_add(dx);
             let abs_y = origin_y.saturating_add(dy);
 
-            out.push(BasicDraw {
-                pos: Point { x: abs_x, y: abs_y },
-                chr: *ch,
-            });
+            bd_creator.draw_char((abs_x, abs_y), *chr);
         }
-        Ok(out)
+        Ok(())
     }
 
     fn get_frames_since_last_update(&self, speed: &VideoSpeed) -> u16 {
@@ -133,18 +127,18 @@ impl Drawable for SpriteDrawable {
     fn as_single_pointed_mut(&mut self) -> Option<&mut dyn SinglePointed> {
         Some(self)
     }
-    fn draw(&mut self, sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&mut self, sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
         let sprite = sprites
             .get(&self.sprite_id)
             .ok_or(DrawError::SpriteNotFound(self.sprite_id))?;
 
         let size = sprite.info.size();
-        let mut out = Vec::with_capacity(size.1 * size.2);
+        let mut bd_creator = BasicDrawCreator::new_with_capacity(size.0 * size.1);
         match &self.animation_type {
             AnimationInfo::Image { frame } => {
                 let frame_idx = self.get_frame_idx(frame, sprite);
 
-                out = self.draw_frame(sprite, frame_idx, (size.1, size.2))?;
+                self.draw_frame(sprite, frame_idx, (size.1, size.2), &mut bd_creator)?;
             }
             AnimationInfo::Video {
                 loop_type,
@@ -189,11 +183,11 @@ impl Drawable for SpriteDrawable {
                 if let Some(frame_in_range) = current_frame_in_range {
                     let frame_to_draw = real_start_frame + frame_in_range as usize;
                     let size = sprite.info.size();
-                    out = self.draw_frame(sprite, frame_to_draw, (size.1, size.2))?;
+                    self.draw_frame(sprite, frame_to_draw, (size.1, size.2), &mut bd_creator)?;
                 }
             }
         }
-        Ok(out)
+        Ok(bd_creator)
     }
 
     fn bounding_iv(&self, sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {

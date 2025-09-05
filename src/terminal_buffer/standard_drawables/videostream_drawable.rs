@@ -2,10 +2,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use crate::{
     DrawError, SpriteRegistry,
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, SinglePointed},
-    },
+    terminal_buffer::{BasicDrawCreator, Drawable, drawable::SinglePointed},
     update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;
@@ -43,11 +40,11 @@ impl Drawable for VideoStreamDrawable {
         Some(self)
     }
 
-    fn draw(&mut self, _: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&mut self, _: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
         match self.receiver.try_recv() {
             Ok(frame) => self.last_frame = frame,
             Err(TryRecvError::Empty) => {}
-            Err(TryRecvError::Disconnected) => return Ok(Vec::new()),
+            Err(TryRecvError::Disconnected) => return Ok(BasicDrawCreator::new()),
         };
         let frame = &self.last_frame;
         self.size = frame.size;
@@ -57,31 +54,22 @@ impl Drawable for VideoStreamDrawable {
 
         // avoid division/modulo by zero
         if width == 0 || height == 0 {
-            return Ok(Vec::new());
+            return Ok(BasicDrawCreator::new());
         }
 
-        let mut draws: Vec<BasicDraw> = Vec::with_capacity(frame.data.len().min(cells));
+        let mut bd_creator = BasicDrawCreator::new_with_capacity(frame.data.len().min(cells));
 
         for (i, opt_ch) in frame.data.iter().enumerate() {
             let idx = i % cells;
             let x_off = (idx % width) as i32;
             let y_off = (idx / width) as i32;
 
-            if let Some(char) = opt_ch {
-                draws.push(BasicDraw {
-                    pos: Point {
-                        x: self.position.x + x_off,
-                        y: self.position.y + y_off,
-                    },
-                    chr: *char,
-                });
+            if let Some(chr) = opt_ch {
+                bd_creator.draw_char((self.position.x + x_off, self.position.y + y_off), *chr);
             }
         }
 
-        if draws.is_empty() {
-            return Ok(Vec::new());
-        }
-        Ok(draws)
+        Ok(bd_creator)
     }
     fn bounding_iv(&self, _: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
         let mut c = UpdateIntervalCreator::new();

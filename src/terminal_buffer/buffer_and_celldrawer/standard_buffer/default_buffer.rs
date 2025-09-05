@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::{collections::HashMap, marker::PhantomData, thread::JoinHandle};
 
 use crate::{
     ScreenBuffer, UpdateIntervalHandler,
@@ -16,7 +16,7 @@ pub struct DefaultScreenBuffer<CD: CellDrawer + Send + 'static> {
     drawer_tx: std::sync::mpsc::SyncSender<CellDrawerCommand>,
 
     /// todo: implement joining
-    drawer_handle: std::thread::JoinHandle<()>,
+    drawer_handle: Option<JoinHandle<()>>,
     _phantom: std::marker::PhantomData<CD>,
 }
 
@@ -60,6 +60,9 @@ where
                     CellDrawerCommand::Flush => {
                         let _ = drawer.flush();
                     }
+                    CellDrawerCommand::Stop => {
+                        break;
+                    }
                 }
             }
         });
@@ -74,12 +77,18 @@ where
             intervals: UpdateIntervalHandler::new(size.0, size.1),
             size,
             drawer_tx,
-            drawer_handle,
+            drawer_handle: Some(drawer_handle),
             _phantom: PhantomData,
         }
     }
 
     fn drawer_sender(&self) -> std::sync::mpsc::SyncSender<CellDrawerCommand> {
         self.drawer_tx.clone()
+    }
+    fn drop(&mut self) {
+        let _ = self.drawer_tx.send(CellDrawerCommand::Stop);
+        if let Some(handle) = self.drawer_handle.take() {
+            let _ = handle.join();
+        }
     }
 }

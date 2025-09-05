@@ -4,10 +4,7 @@ use ascii_assets::TerminalChar;
 use common_stdx::Point;
 
 use crate::{
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, MultiPointed},
-    },
+    terminal_buffer::{BasicDrawCreator, Drawable, drawable::MultiPointed},
     update_interval_handler::UpdateIntervalCreator,
 };
 
@@ -237,21 +234,15 @@ impl Drawable for PolygonDrawable {
         Some(self)
     }
 
-    fn draw(
-        &mut self,
-        _: &crate::SpriteRegistry,
-    ) -> Result<Vec<crate::terminal_buffer::drawable::BasicDraw>, crate::DrawError> {
+    fn draw(&mut self, _: &crate::SpriteRegistry) -> Result<BasicDrawCreator, crate::DrawError> {
         let (border_set, _ivs) = compute_border_and_bounding(&self.points);
 
-        let mut out: Vec<BasicDraw> = Vec::new();
+        let mut out = BasicDrawCreator::new();
 
         let border_map = rasterize_border(&self.points);
         for (&y, xs) in &border_map {
             for &x in xs {
-                out.push(BasicDraw {
-                    pos: Point { x, y },
-                    chr: self.border_style,
-                });
+                out.draw_char(Point { x, y }, self.border_style);
             }
         }
 
@@ -268,7 +259,7 @@ impl Drawable for PolygonDrawable {
                     if border_set.contains(&pos) {
                         continue;
                     }
-                    out.push(BasicDraw { pos, chr: fill_chr });
+                    out.draw_char(pos, fill_chr);
                 }
             }
         }

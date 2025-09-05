@@ -3,6 +3,7 @@ use common_stdx::{Point, Rect};
 use crossterm::terminal::size;
 use env_logger::Builder;
 use log::info;
+use ltrender::display_screen::{ScreenAreaRect, ScreenPoint};
 use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::{AppError, DrawError};
@@ -84,7 +85,7 @@ fn video_render_test() -> Result<(), AppError> {
     r.set_render_mode(ltrender::renderer::RenderMode::Buffered);
     r.set_update_interval(16);
 
-    let screen = r.create_screen(Rect::from_coords(0, 0, cols as i32, rows as i32), 5);
+    let screen = r.create_screen(ScreenAreaRect::FullScreen, 5);
     expect_no_data();
 
     let obj_id = if let Ok(sprite) =
@@ -136,7 +137,13 @@ fn video_render_test() -> Result<(), AppError> {
     test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
 
     // changing the screen area, should only create change on the screen, after render frame has been called
-    r.change_screen_area(screen, Rect::from_coords(1, 1, 20, 20));
+    r.change_screen_area(
+        screen,
+        ScreenAreaRect::FromPoints(
+            ScreenPoint::Point(Point::from((1, 1))),
+            ScreenPoint::BottomRight,
+        ),
+    );
     test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
     // video should now be at 1,1
     r.render_frame();
@@ -146,7 +153,13 @@ fn video_render_test() -> Result<(), AppError> {
     // using 1,1 as position, since the video is also there
     let border_style = TerminalChar::from_char('#');
 
-    let rect_screen = r.create_screen(Rect::from_coords(1, 1, cols as i32, rows as i32), 0);
+    let rect_screen = r.create_screen(
+        ScreenAreaRect::FromPoints(
+            ScreenPoint::Point(Point::from((0, 0))),
+            ScreenPoint::BottomRight,
+        ),
+        0,
+    );
     // dropping, since the rect is drawnautomatically
     let _ = DrawObjectBuilder::default()
         .add_lifetime(ObjectLifetime::ExplicitRemove)

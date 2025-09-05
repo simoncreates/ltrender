@@ -4,10 +4,11 @@ use std::{
     time::Duration,
 };
 
-use common_stdx::{Point, Rect};
+use common_stdx::Point;
 
 use crate::{
     DrawError, DrawObject, DrawObjectKey, Renderer, ScreenBuffer, ScreenKey, SpriteId,
+    display_screen::ScreenAreaRect,
     error::AppError,
     renderer::RenderMode,
     terminal_buffer::{CellDrawer, Drawable},
@@ -27,15 +28,15 @@ impl RendererHandle {
         let _ = self.tx.send(RendererCommand::SetRenderMode(mode));
     }
 
-    pub fn create_screen(&self, rect: Rect<i32>, layer: usize) -> ScreenKey {
+    pub fn create_screen(&self, area: ScreenAreaRect, layer: usize) -> ScreenKey {
         let (reply_tx, reply_rx) = mpsc::channel();
         let _ = self
             .tx
-            .send(RendererCommand::CreateScreen(rect, layer, reply_tx));
+            .send(RendererCommand::CreateScreen(area, layer, reply_tx));
         reply_rx.recv().unwrap()
     }
 
-    pub fn change_screen_area(&self, screen_id: ScreenKey, new_area: Rect<i32>) {
+    pub fn change_screen_area(&self, screen_id: ScreenKey, new_area: ScreenAreaRect) {
         let _ = self
             .tx
             .send(RendererCommand::ChangeScreenArea(screen_id, new_area));
@@ -246,8 +247,8 @@ where
 pub enum RendererCommand {
     SetRenderMode(RenderMode),
     SetUpdateInterval(usize),
-    CreateScreen(Rect<i32>, usize, std::sync::mpsc::Sender<ScreenKey>),
-    ChangeScreenArea(ScreenKey, Rect<i32>),
+    CreateScreen(ScreenAreaRect, usize, std::sync::mpsc::Sender<ScreenKey>),
+    ChangeScreenArea(ScreenKey, ScreenAreaRect),
     ChangeScreenLayer(ScreenKey, usize),
     CheckIfObjectLifetimeEnded(),
     RegisterDrawable(

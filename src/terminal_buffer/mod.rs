@@ -9,3 +9,6 @@ pub use character_info::{CharacterInfo, CharacterInfoList};
 
 pub mod buffer_and_celldrawer;
 pub use buffer_and_celldrawer::{CellDrawer, ScreenBuffer, ScreenBufferCore};
+
+pub mod basic_draw_creator;
+pub use basic_draw_creator::BasicDrawCreator;

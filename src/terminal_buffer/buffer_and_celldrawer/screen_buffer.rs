@@ -16,6 +16,7 @@ use common_stdx::Point;
 pub enum CellDrawerCommand {
     SetString(BatchDrawInfo, (u16, u16)),
     Flush,
+    Stop,
 }
 
 #[derive(Debug, Clone)]
@@ -50,7 +51,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
     ) -> Result<(), DrawError> {
         let drawable = &mut obj.drawable;
 
-        let mut draws = drawable.draw(sprites)?;
+        let mut draws = drawable.draw(sprites)?.dump_draws();
 
         // TODO: make this only necessary, if a shader is applied, that requires the top left corner
         let top_left = if let Some(corner) = drawable.get_top_left() {
@@ -235,6 +236,8 @@ pub trait ScreenBuffer: ScreenBufferCore {
     fn idx_of(&self, pos: Point<i32>) -> usize {
         (pos.y as usize) * self.size().0 as usize + pos.x as usize
     }
+
+    fn drop(&mut self);
 
     fn handle_none_interval_creator(
         &mut self,

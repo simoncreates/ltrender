@@ -1,9 +1,6 @@
 use crate::{
     DrawError, SpriteRegistry,
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, DoublePointed},
-    },
+    terminal_buffer::{BasicDrawCreator, Drawable, drawable::DoublePointed},
     update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;
@@ -59,8 +56,8 @@ impl Drawable for CircleDrawable {
         Some(self)
     }
 
-    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
-        let mut out = Vec::new();
+    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
+        let mut bd_creator = BasicDrawCreator::new();
 
         let r2 = (self.radius as i32).pow(2);
         let r_inner2 = (self.radius.saturating_sub(1) as i32).pow(2);
@@ -81,15 +78,12 @@ impl Drawable for CircleDrawable {
                         }
                     };
 
-                    out.push(BasicDraw {
-                        pos: Point { x, y },
-                        chr,
-                    });
+                    bd_creator.draw_char(Point { x, y }, chr);
                 }
             }
         }
 
-        Ok(out)
+        Ok(bd_creator)
     }
 
     fn bounding_iv(&self, _sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {

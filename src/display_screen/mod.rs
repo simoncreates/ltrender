@@ -2,38 +2,54 @@ use crate::{
     DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
     terminal_buffer::CellDrawer,
 };
-use common_stdx::Rect;
+use common_stdx::{Point, Rect};
 pub type ScreenKey = usize;
+
+#[derive(Debug, Clone, Copy)]
+pub enum ScreenPoint {
+    Point(Point<i32>),
+    BottomLeft,
+    BottomRight,
+    TopLeft,
+    TopRight,
+}
+#[derive(Debug, Clone, Copy)]
+pub enum ScreenAreaRect {
+    FromPoints(ScreenPoint, ScreenPoint),
+    FullScreen,
+}
 
 #[derive(Debug)]
 pub struct Screen {
     layer: usize,
     id: ScreenKey,
-    pub area: Rect<i32>,
-    draw_objects: Vec<ObjectId>,
+    area: ScreenAreaRect,
+    pub terminal_size: (u16, u16),
+    pub draw_objects: Vec<ObjectId>,
 }
 
 impl Screen {
-    pub fn new(area: Rect<i32>, layer: usize, id: ScreenKey) -> Self {
+    pub fn new(
+        area: ScreenAreaRect,
+        layer: usize,
+        id: ScreenKey,
+        terminal_size: (u16, u16),
+    ) -> Self {
         Screen {
             layer,
             id,
             area,
+            terminal_size,
             draw_objects: Vec::new(),
         }
     }
 
-    pub fn change_screen_area(&mut self, new_area: Rect<i32>) {
+    pub fn change_screen_area(&mut self, new_area: ScreenAreaRect) {
         self.area = new_area;
     }
 
     pub fn change_screen_layer(&mut self, new_layer: usize) {
         self.layer = new_layer;
-    }
-
-    /// allows others to read the private objects
-    pub fn all_listed_drawobjects(&self) -> Vec<ObjectId> {
-        self.draw_objects.clone()
     }
 
     /// register a drawable, so it can be drawn on this screen
@@ -75,7 +91,8 @@ impl Screen {
             object_id,
         });
         if let Some(obj) = opt_obj {
-            screen_buffer.add_to_buffer(obj, object_id, self.layer, &self.area, sprites)?;
+            let rect = self.area_to_rect(&self.terminal_size, &self.area);
+            screen_buffer.add_to_buffer(obj, object_id, self.layer, &rect, sprites)?;
         } else {
             return Err(DrawError::DrawableHandleNotFound {
                 screen_id: self.id,
@@ -85,6 +102,36 @@ impl Screen {
 
         Ok(())
     }
+
+    fn area_to_rect(&self, terminal_size: &(u16, u16), area: &ScreenAreaRect) -> Rect<i32> {
+        match area {
+            ScreenAreaRect::FromPoints(p1, p2) => Rect {
+                p1: self.screen_point_to_point(terminal_size, *p1),
+                p2: self.screen_point_to_point(terminal_size, *p2),
+            },
+            ScreenAreaRect::FullScreen => Rect {
+                p1: self.screen_point_to_point(terminal_size, ScreenPoint::TopLeft),
+                p2: self.screen_point_to_point(terminal_size, ScreenPoint::BottomRight),
+            },
+        }
+    }
+
+    fn screen_point_to_point(
+        &self,
+        terminal_size: &(u16, u16),
+        screen_point: ScreenPoint,
+    ) -> Point<i32> {
+        match screen_point {
+            ScreenPoint::Point(p) => p,
+            ScreenPoint::TopLeft => Point::from((0, 0)),
+            ScreenPoint::TopRight => Point::from((terminal_size.0 as i32, 0)),
+            ScreenPoint::BottomLeft => Point::from((0, terminal_size.1 as i32)),
+            ScreenPoint::BottomRight => {
+                Point::from((terminal_size.0 as i32, terminal_size.1 as i32))
+            }
+        }
+    }
+
     /// Remove a drawable object from the screen.
     pub fn remove_drawable<B>(
         &mut self,
@@ -102,7 +149,8 @@ impl Screen {
             object_id,
         });
         if let Some(obj) = opt_obj {
-            screen_buffer.remove_from_buffer(obj, object_id, sprites, &self.area);
+            let rect = self.area_to_rect(&self.terminal_size, &self.area);
+            screen_buffer.remove_from_buffer(obj, object_id, sprites, &rect);
         } else {
             return Err(DrawError::DrawableHandleNotFound {
                 screen_id: self.id,

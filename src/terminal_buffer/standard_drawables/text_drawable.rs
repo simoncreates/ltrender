@@ -2,10 +2,7 @@ use std::ops::Range;
 
 use crate::{
     DrawError, SpriteRegistry,
-    terminal_buffer::{
-        Drawable,
-        drawable::{BasicDraw, DoublePointed},
-    },
+    terminal_buffer::{BasicDrawCreator, Drawable, drawable::DoublePointed},
     update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::{Color, TerminalChar};
@@ -74,14 +71,14 @@ impl Drawable for TextDrawable {
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }
-    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<Vec<BasicDraw>, DrawError> {
+    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
         if self.area.p1.x > self.area.p2.x || self.area.p1.y > self.area.p2.y {
-            return Ok(Vec::new());
+            return Ok(BasicDrawCreator::new());
         }
 
         let max_width = self.area.width() as usize;
         let max_height = self.area.height() as usize;
-        let mut out = Vec::new();
+        let mut out = BasicDrawCreator::new();
         let mut visual_row = 0;
 
         for line in self.lines.iter().skip(self.scroll_y as usize) {
@@ -141,10 +138,7 @@ impl Drawable for TextDrawable {
                         // tc.bold = style.bold.unwrap_or(false);
                         // tc.italic = style.italic.unwrap_or(false);
 
-                        out.push(BasicDraw {
-                            pos: Point { x, y },
-                            chr: tc,
-                        });
+                        out.draw_char((x, y), tc);
                     }
                     x += 1;
                 }
