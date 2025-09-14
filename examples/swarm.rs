@@ -27,6 +27,8 @@ use ltrender::terminal_buffer::standard_drawables::videostream_drawable::StreamF
 use ltrender::terminal_buffer::standard_drawables::{PolygonDrawable, text_drawable};
 use ltrender::{DrawObject, DrawObjectBuilder, DrawObjectKey};
 
+use tick_manager_rs::{TickManager, TickMember};
+
 #[derive(Clone, Copy, Debug)]
 struct Agent {
     id: DrawObjectKey,
@@ -162,6 +164,7 @@ fn spawn_soft_wave(
     ren: RendererHandle,
     key: DrawObjectKey,
     size: (u16, u16),
+    bg_member: TickMember,
 ) {
     std::thread::spawn(move || {
         let mut t = 0.0f32;
@@ -185,8 +188,8 @@ fn spawn_soft_wave(
             }
             let _ = sender.send(StreamFrame { data, size });
             ren.render_drawable(key);
-            std::thread::sleep(Duration::from_millis(40));
             t += 0.04;
+            bg_member.wait_for_tick();
         }
     });
 }
@@ -194,6 +197,12 @@ fn spawn_soft_wave(
 pub fn main() -> Result<(), AppError> {
     ltrender::init_terminal()?;
     init_logger("./organic_swarm.log")?;
+
+    // creating the tick manager for syncing the waves with the main swarm
+    let (_manager, manager_handle) = TickManager::new(tick_manager_rs::Speed::Fps(160));
+    let main_member = tick_manager_rs::TickMember::new(manager_handle.clone(), 1);
+    // running at half the speed
+    let bg_member = tick_manager_rs::TickMember::new(manager_handle, 6);
 
     let (cols, rows) = size()?;
     let (manager, mut r) =
@@ -212,7 +221,7 @@ pub fn main() -> Result<(), AppError> {
         .shader(Grayscale)
         .add_lifetime(ObjectLifetime::ExplicitRemove)
         .build(&mut r)?;
-    spawn_soft_wave(tx, r.clone(), video_id, (cols, rows));
+    spawn_soft_wave(tx, r.clone(), video_id, (cols, rows), bg_member);
 
     // Optional: tiny sprite clock in the corner (if you have a .ascv around, otherwise harmless).
     if let Ok(sprite) =
@@ -410,11 +419,11 @@ pub fn main() -> Result<(), AppError> {
         }
 
         r.render_drawable(rect_id);
-        r.render_frame();
-        let frame_render_duration = render_start.elapsed();
+
+        let frame_preperation_duration = render_start.elapsed();
 
         if show_hud {
-            let fps = 1.0 / frame_render_duration.as_secs_f64();
+            let fps = 1.0 / frame_preperation_duration.as_secs_f64();
             fps_vec.push(fps);
 
             if time_since_last_fps_log.elapsed() > Duration::from_secs(5) {
@@ -457,10 +466,8 @@ pub fn main() -> Result<(), AppError> {
             r.replace_drawable(hud_id, Box::new(hud));
             r.render_drawable(hud_id);
         }
-        use std::time::Duration;
-        let target = Duration::from_millis(12);
-        let to_sleep = target.saturating_sub(frame_render_duration);
-        std::thread::sleep(to_sleep);
+        main_member.wait_for_tick();
+        r.render_frame();
     }
 
     // cleanup
