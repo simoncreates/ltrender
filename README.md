@@ -4,9 +4,13 @@ powerful rendering engine for terminal tools and games.
 
 
 ## TODO:
-- make sure engine is easy to use and easy to understand
 - documentation
 - more examples
+- allow for two methods of keypress handling (at best both should be possible at the same time)
+1. getting a list of all the changes and the user can filter out themselves what to use  
+this is meant for a frame based usecase
+2. setting up a sender and receiver. the InputHandler can then send changes to the Code directly,
+this would be meant for applications, that need to be updated instantly
 
 ## Improve:
 - add more testing

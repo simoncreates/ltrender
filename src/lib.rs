@@ -25,6 +25,9 @@ pub use drawable_register::{DrawObject, DrawObjectKey, DrawObjectLibrary};
 pub mod draw_object_builder;
 pub use draw_object_builder::DrawObjectBuilder;
 
+pub mod input_handler;
+pub use input_handler::InputHandler;
+
 // for testing purposes only
 use once_cell::sync::Lazy;
 use std::sync::Mutex;

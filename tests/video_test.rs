@@ -11,6 +11,7 @@ use ltrender::renderer::render_handle::RendererManager;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::TestCellDrawer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_buffer::TerminalContentInformation;
+use ltrender::terminal_buffer::standard_drawables::rect_drawable::BorderStyle;
 use ltrender::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
@@ -151,7 +152,8 @@ fn video_render_test() -> Result<(), AppError> {
 
     //now adding a rect on a screen below the video, then moving it above
     // using 1,1 as position, since the video is also there
-    let border_style = TerminalChar::from_char('#');
+    let border_char = TerminalChar::from_char('#');
+    let border_style = BorderStyle::AllRound(border_char);
 
     let rect_screen = r.create_screen(
         ScreenAreaRect::FromPoints(
@@ -182,7 +184,7 @@ fn video_render_test() -> Result<(), AppError> {
     // changing the layer, now the rect should be above
     r.change_screen_layer(rect_screen, 10);
     r.render_frame();
-    test_if_eq_at_pos(Point { x: 1, y: 1 }, Some(border_style));
+    test_if_eq_at_pos(Point { x: 1, y: 1 }, Some(border_char));
 
     ltrender::restore_terminal()?;
     manager.stop();
