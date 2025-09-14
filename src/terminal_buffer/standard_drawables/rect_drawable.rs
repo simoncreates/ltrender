@@ -9,15 +9,20 @@ use common_stdx::{Point, Rect};
 #[derive(Clone, Debug)]
 pub enum BorderStyle {
     AllRound(TerminalChar),
-    Custom{top: TerminalChar, bottom: TerminalChar, left: TerminalChar, right: TerminalChar},
-    Basic
+    Custom {
+        top: TerminalChar,
+        bottom: TerminalChar,
+        left: TerminalChar,
+        right: TerminalChar,
+    },
+    Basic,
 }
 
 enum BorderStyleCustomFields {
     Top,
     Bottom,
     Left,
-    Right
+    Right,
 }
 
 #[derive(Clone, Debug)]
@@ -51,25 +56,28 @@ impl DoublePointed for RectDrawable {
 }
 
 impl RectDrawable {
-    fn get_borderchar(&self, opt_style: Option<BorderStyleCustomFields>) -> TerminalChar{
-    
-        match self.border_style{
+    fn get_borderchar(&self, opt_style: Option<BorderStyleCustomFields>) -> TerminalChar {
+        match self.border_style {
             BorderStyle::Basic => TerminalChar::from_char('#'),
             BorderStyle::AllRound(chr) => chr,
-            BorderStyle::Custom{top,bottom, left, right} => {
-            if let Some(style) = opt_style {
-
-                match style {
-                    BorderStyleCustomFields::Top => top,
-                    BorderStyleCustomFields::Left => left,
-                    BorderStyleCustomFields::Right => right,
-                    BorderStyleCustomFields::Bottom => bottom
-                }
-            } else {
-                panic!("this is an internal function error, it should be impossible to reach")
+            BorderStyle::Custom {
+                top,
+                bottom,
+                left,
+                right,
+            } => {
+                if let Some(style) = opt_style {
+                    match style {
+                        BorderStyleCustomFields::Top => top,
+                        BorderStyleCustomFields::Left => left,
+                        BorderStyleCustomFields::Right => right,
+                        BorderStyleCustomFields::Bottom => bottom,
+                    }
+                } else {
+                    panic!("this is an internal function error, it should be impossible to reach")
                 }
             }
-         }
+        }
     }
 }
 
@@ -96,17 +104,38 @@ impl Drawable for RectDrawable {
         let mut out = BasicDrawCreator::new_with_capacity(cap);
         let rect = &self.rect;
         for y in rect.p1.y..=rect.p2.y {
-            if y < (rect.p1.y + self.border_thickness  as i32) {
+            if y < (rect.p1.y + self.border_thickness as i32) {
                 let field = Some(BorderStyleCustomFields::Top);
                 let chr = self.get_borderchar(field);
-                out.draw_line(Point::from((rect.p1.x, y)), Point::from((rect.p2.x, y)), chr);
-            } 
-            if y  >= (rect.p2.y + self.border_thickness as i32) {
-                let field = Some(BorderStyleCustomFields::Bottom); 
+                out.draw_line((rect.p1.x, y), (rect.p2.x, y), chr);
+            } else if y > (rect.p2.y - self.border_thickness as i32) {
+                let field = Some(BorderStyleCustomFields::Bottom);
                 let chr = self.get_borderchar(field);
-                out.draw_line(Point::from((rect.p1.x, y)), Point::from((rect.p2.x, y)), chr);
-            };
-            
+                out.draw_line((rect.p1.x, y), (rect.p2.x, y), chr);
+            } else {
+                let left_chr = self.get_borderchar(Some(BorderStyleCustomFields::Left));
+                let right_chr = self.get_borderchar(Some(BorderStyleCustomFields::Right));
+                // left border
+                out.draw_line(
+                    (rect.p1.x, y),
+                    (rect.p1.x + self.border_thickness as i32, y),
+                    left_chr,
+                );
+                // filling
+                if let Some(style) = self.fill_style {
+                    let fill_start = rect.p1.x + self.border_thickness as i32;
+                    let fill_end = rect.p2.x - self.border_thickness as i32;
+                    if fill_start <= fill_end {
+                        out.draw_line((fill_start, y), (fill_end, y), style);
+                    }
+                }
+                // right border
+                out.draw_line(
+                    (rect.p2.x - self.border_thickness as i32 + 1, y),
+                    (rect.p2.x, y),
+                    right_chr,
+                );
+            }
         }
 
         Ok(out)

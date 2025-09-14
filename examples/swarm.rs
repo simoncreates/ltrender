@@ -199,7 +199,7 @@ pub fn main() -> Result<(), AppError> {
     init_logger("./organic_swarm.log")?;
 
     // creating the tick manager for syncing the waves with the main swarm
-    let (_manager, manager_handle) = TickManager::new(tick_manager_rs::Speed::Fps(160));
+    let (_manager, manager_handle) = TickManager::new(tick_manager_rs::Speed::Fps(50));
     let main_member = tick_manager_rs::TickMember::new(manager_handle.clone(), 1);
     // running at half the speed
     let bg_member = tick_manager_rs::TickMember::new(manager_handle, 6);
@@ -248,10 +248,17 @@ pub fn main() -> Result<(), AppError> {
         .layer(100)
         .screen(screen)
         .rect_drawable(|r| {
-            r.border_style(ltrender::terminal_buffer::standard_drawables::rect_drawable::BorderStyle::Custom { top: TerminalChar::from_char('T'), bottom: TerminalChar::from_char('B'), left: TerminalChar::from_char('L'), right: TerminalChar::from_char('R') })
-                .border_thickness(1)
-                .fill_style(' ')
-                .rect(Rect::from_coords(20, 20, 40, 40))
+            r.border_style(
+                ltrender::terminal_buffer::standard_drawables::rect_drawable::BorderStyle::Custom {
+                    top: TerminalChar::from_char('T'),
+                    bottom: TerminalChar::from_char('B'),
+                    left: TerminalChar::from_char('L'),
+                    right: TerminalChar::from_char('R'),
+                },
+            )
+            .border_thickness(2)
+            .fill_style(' ')
+            .rect(Rect::from_coords(20, 20, 40, 40))
         })?
         .add_lifetime(ObjectLifetime::ExplicitRemove)
         .build(&mut r)?;
