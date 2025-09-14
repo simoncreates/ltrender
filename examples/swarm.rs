@@ -239,7 +239,7 @@ pub fn main() -> Result<(), AppError> {
         .layer(100)
         .screen(screen)
         .rect_drawable(|r| {
-            r.border_style('#')
+            r.border_style(ltrender::terminal_buffer::standard_drawables::rect_drawable::BorderStyle::Custom { top: TerminalChar::from_char('T'), bottom: TerminalChar::from_char('B'), left: TerminalChar::from_char('L'), right: TerminalChar::from_char('R') })
                 .border_thickness(1)
                 .fill_style(' ')
                 .rect(Rect::from_coords(20, 20, 40, 40))

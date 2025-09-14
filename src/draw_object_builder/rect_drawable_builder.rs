@@ -3,7 +3,7 @@ use common_stdx::Rect;
 
 use crate::{
     error::DrawObjectBuilderError,
-    terminal_buffer::{Drawable, standard_drawables::RectDrawable},
+    terminal_buffer::{standard_drawables::{rect_drawable::BorderStyle, RectDrawable}, Drawable},
 };
 
 use crate::handle_char_field;
@@ -12,7 +12,7 @@ use crate::handle_char_field;
 pub struct RectDrawableBuilder {
     rect: Option<Rect<i32>>,
     border_thickness: Option<usize>,
-    border_style: Option<TerminalChar>,
+    border_style: Option<BorderStyle>,
     fill_style: Option<TerminalChar>,
 }
 
@@ -31,7 +31,11 @@ impl RectDrawableBuilder {
         self
     }
 
-    handle_char_field!(border_style, border_style);
+    pub fn border_style(mut self, style: BorderStyle) -> Self {
+        self.border_style = Some(style);
+        self
+    }
+
     handle_char_field!(fill_style, fill_style);
 
     pub fn build(self) -> Result<Box<dyn Drawable>, DrawObjectBuilderError> {

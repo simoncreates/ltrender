@@ -7,10 +7,24 @@ use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 
 #[derive(Clone, Debug)]
+pub enum BorderStyle {
+    AllRound(TerminalChar),
+    Custom{top: TerminalChar, bottom: TerminalChar, left: TerminalChar, right: TerminalChar},
+    Basic
+}
+
+enum BorderStyleCustomFields {
+    Top,
+    Bottom,
+    Left,
+    Right
+}
+
+#[derive(Clone, Debug)]
 pub struct RectDrawable {
     pub rect: Rect<i32>,
     pub border_thickness: usize,
-    pub border_style: TerminalChar,
+    pub border_style: BorderStyle,
     pub fill_style: Option<TerminalChar>,
 }
 
@@ -36,6 +50,29 @@ impl DoublePointed for RectDrawable {
     }
 }
 
+impl RectDrawable {
+    fn get_borderchar(&self, opt_style: Option<BorderStyleCustomFields>) -> TerminalChar{
+    
+        match self.border_style{
+            BorderStyle::Basic => TerminalChar::from_char('#'),
+            BorderStyle::AllRound(chr) => chr,
+            BorderStyle::Custom{top,bottom, left, right} => {
+            if let Some(style) = opt_style {
+
+                match style {
+                    BorderStyleCustomFields::Top => top,
+                    BorderStyleCustomFields::Left => left,
+                    BorderStyleCustomFields::Right => right,
+                    BorderStyleCustomFields::Bottom => bottom
+                }
+            } else {
+                panic!("this is an internal function error, it should be impossible to reach")
+                }
+            }
+         }
+    }
+}
+
 impl Drawable for RectDrawable {
     fn size(&self, _sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError> {
         let size = (self.rect.p2 - self.rect.p1) + Point::new(1, 1);
@@ -57,26 +94,19 @@ impl Drawable for RectDrawable {
 
         let cap = expected.clamp(0, i32::MAX) as usize;
         let mut out = BasicDrawCreator::new_with_capacity(cap);
-
-        for y in self.rect.p1.y..=self.rect.p2.y {
-            for x in self.rect.p1.x..=self.rect.p2.x {
-                let left = x - self.rect.p1.x;
-                let right = self.rect.p2.x - x;
-                let top = y - self.rect.p1.y;
-                let bottom = self.rect.p2.y - y;
-
-                let min_dist = *[left, right, top, bottom].iter().min().unwrap();
-
-                let chr = if min_dist < self.border_thickness as i32 {
-                    self.border_style
-                } else {
-                    match self.fill_style {
-                        Some(ch) => ch,
-                        None => continue,
-                    }
-                };
-                out.draw_char((x, y), chr);
-            }
+        let rect = &self.rect;
+        for y in rect.p1.y..=rect.p2.y {
+            if y < (rect.p1.y + self.border_thickness  as i32) {
+                let field = Some(BorderStyleCustomFields::Top);
+                let chr = self.get_borderchar(field);
+                out.draw_line(Point::from((rect.p1.x, y)), Point::from((rect.p2.x, y)), chr);
+            } 
+            if y  >= (rect.p2.y + self.border_thickness as i32) {
+                let field = Some(BorderStyleCustomFields::Bottom); 
+                let chr = self.get_borderchar(field);
+                out.draw_line(Point::from((rect.p1.x, y)), Point::from((rect.p2.x, y)), chr);
+            };
+            
         }
 
         Ok(out)
