@@ -2,14 +2,11 @@ use ascii_assets::{AsciiSprite, AsciiVideo, Color, TerminalChar};
 use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, MouseEventKind, poll, read};
 use crossterm::terminal::size;
-use env_logger::Builder;
 use log::info;
 use ltrender::display_screen::ScreenAreaRect;
 use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermCellDrawer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use rand::Rng;
-use std::fs::File;
-use std::io::Write;
 use std::sync::mpsc::SyncSender;
 use std::time::{Duration, Instant};
 
@@ -17,6 +14,7 @@ use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::draw_object_builder::videostream_drawable_builder::make_videostream_drawable;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::AppError;
+use ltrender::init_logger;
 use ltrender::renderer::RendererHandle;
 use ltrender::renderer::render_handle::RendererManager;
 use ltrender::terminal_buffer::buffer_and_celldrawer::shaders::Grayscale;
@@ -46,17 +44,6 @@ struct MouseState {
     left: bool,
     right: bool,
     strength: f64,
-}
-
-fn init_logger(path: &str) -> Result<(), AppError> {
-    let f = File::create(path)?;
-    Builder::new()
-        .format_timestamp_secs()
-        .format(|buf, record| writeln!(buf, "[{}] {}", record.level(), record.args()))
-        .target(env_logger::Target::Pipe(Box::new(f)))
-        .filter_level(log::LevelFilter::Info)
-        .init();
-    Ok(())
 }
 
 fn wrap(v: f64, max: f64) -> f64 {

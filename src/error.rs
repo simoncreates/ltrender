@@ -1,6 +1,9 @@
 use thiserror::Error;
 
-use crate::SpriteId;
+use crate::{
+    SpriteId,
+    input_handler::manager::{EventManagerCommand, SubscriptionMessage},
+};
 use std::fmt::Debug;
 
 #[derive(Debug, Error)]
@@ -15,7 +18,23 @@ pub enum AppError {
     Draw(#[from] DrawError),
 
     #[error(transparent)]
+    InputCommunication(#[from] EventCommunicationError),
+
+    #[error(transparent)]
     Io(#[from] std::io::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum EventCommunicationError {
+    #[error("did not receive a subscription id from the EventManager after subscribing")]
+    DidNotReceiveIDResponse,
+    #[error("failed to send a command message to the Event Manager. Message: {message}")]
+    FailedToSendEventManagerCommandMessage { message: EventManagerCommand },
+    #[error("expected a SubscriptionMessage of type: {expected_type}, got: {received_type}")]
+    ReceiveUnexpectedResponse {
+        expected_type: SubscriptionMessage,
+        received_type: SubscriptionMessage,
+    },
 }
 
 #[derive(Debug, Error)]

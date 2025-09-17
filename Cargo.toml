@@ -18,7 +18,8 @@ rand          = "0.8"
 dyn-clone     = "1"
 once_cell     = "1.21.3"
 tick_manager_rs = "0.1.0"
+crossbeam-channel = "0.5.15"
 
-
-
-
+[features]
+default = ["bracketed-paste"]
+bracketed-paste = []

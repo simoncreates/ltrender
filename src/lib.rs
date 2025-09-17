@@ -26,13 +26,16 @@ pub mod draw_object_builder;
 pub use draw_object_builder::DrawObjectBuilder;
 
 pub mod input_handler;
-pub use input_handler::InputHandler;
+pub use input_handler::CrosstermEventManager;
 
 // for testing purposes only
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-use crate::terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_buffer::TerminalContentInformation;
+use crate::{
+    error::AppError,
+    terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_buffer::TerminalContentInformation,
+};
 
 static TEST_DATA: Lazy<Mutex<Option<TerminalContentInformation>>> = Lazy::new(|| Mutex::new(None));
 
@@ -44,4 +47,19 @@ pub fn set_test_data(data: TerminalContentInformation) {
 pub fn get_test_data() -> Option<TerminalContentInformation> {
     let guard = TEST_DATA.lock().unwrap();
     guard.clone()
+}
+
+use env_logger::Builder;
+use std::fs::File;
+use std::io::Write;
+
+pub fn init_logger(path: &str) -> Result<(), AppError> {
+    let f = File::create(path)?;
+    Builder::new()
+        .format_timestamp_secs()
+        .format(|buf, record| writeln!(buf, "[{}] {}", record.level(), record.args()))
+        .target(env_logger::Target::Pipe(Box::new(f)))
+        .filter_level(log::LevelFilter::Info)
+        .init();
+    Ok(())
 }

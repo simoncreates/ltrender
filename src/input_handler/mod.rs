@@ -1,5 +1,4 @@
-pub mod handler;
-pub use handler::InputHandler;
+pub mod manager;
+pub use manager::CrosstermEventManager;
 
-mod keyboard;
-use keyboard::KeyboardInputHandler;
+pub mod hook;
