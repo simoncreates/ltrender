@@ -3,9 +3,10 @@ use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
     thread::{self},
+    time::Duration,
 };
 
-use crossbeam_channel::{Receiver as CbReceiver, Select, unbounded};
+use crossbeam_channel::{Receiver as CbReceiver, TryRecvError, unbounded};
 
 use crate::{
     error::EventCommunicationError,
@@ -21,7 +22,7 @@ pub enum InputButton {
     Key(KeyCode),
 }
 
-type Callback = Box<dyn FnMut(SubscriptionMessage) + Send + 'static>;
+type Callback = Arc<Mutex<Box<dyn FnMut(SubscriptionMessage) + Send>>>;
 type SubscriptionDate = (SubscriptionID, CbReceiver<SubscriptionMessage>);
 
 pub struct EventHook {
@@ -55,6 +56,9 @@ impl EventHook {
         let receivers = self.receivers.clone();
 
         self.dispatcher = Some(thread::spawn(move || {
+            let mut idle_sleep = Duration::from_millis(2);
+            let max_sleep = Duration::from_millis(50);
+
             loop {
                 let snapshot: Vec<(SubscriptionID, CbReceiver<SubscriptionMessage>)> = {
                     let guard = receivers.lock().unwrap();
@@ -62,39 +66,64 @@ impl EventHook {
                 };
 
                 if snapshot.is_empty() {
-                    thread::sleep(std::time::Duration::from_millis(5));
+                    thread::sleep(Duration::from_millis(10));
                     continue;
                 }
 
-                let mut sel = Select::new();
-                for (_id, r) in snapshot.iter() {
-                    sel.recv(r);
+                let mut handled_any = false;
+
+                for (sub_id, recv) in snapshot.iter() {
+                    match recv.try_recv() {
+                        Ok(msg) => {
+                            handled_any = true;
+
+                            if let SubscriptionMessage::SubscriptionId(_) = msg {
+                                continue;
+                            }
+                            let cb_arc_opt: Option<Callback> = {
+                                let cbs_guard = callbacks.lock().unwrap();
+                                cbs_guard.get(sub_id).cloned()
+                            };
+
+                            if let Some(cb_arc) = cb_arc_opt {
+                                match cb_arc.lock() {
+                                    Ok(mut cb) => {
+                                        (cb)(msg);
+                                    }
+                                    Err(poisoned) => {
+                                        log::warn!(
+                                            "callback mutex poisoned for subscription {:?}",
+                                            sub_id
+                                        );
+                                        // attempt to recover
+                                        let _a = poisoned.into_inner();
+                                    }
+                                }
+                            }
+                        }
+
+                        Err(TryRecvError::Empty) => {}
+
+                        Err(TryRecvError::Disconnected) => {
+                            {
+                                let mut guard = receivers.lock().unwrap();
+                                if let Some(pos) = guard.iter().position(|(id, _)| id == sub_id) {
+                                    guard.remove(pos);
+                                }
+                            }
+                            {
+                                let mut cbs = callbacks.lock().unwrap();
+                                cbs.remove(sub_id);
+                            }
+                        }
+                    }
                 }
 
-                let oper = sel.select();
-                let idx = oper.index();
-                let (sub_id, recv) = &snapshot[idx];
-
-                match oper.recv(recv) {
-                    Ok(msg) => {
-                        if let SubscriptionMessage::SubscriptionId(_) = msg {
-                            continue;
-                        }
-
-                        let mut cbs = callbacks.lock().unwrap();
-                        if let Some(cb) = cbs.get_mut(sub_id) {
-                            (cb)(msg);
-                        }
-                    }
-                    Err(_) => {
-                        let mut guard = receivers.lock().unwrap();
-                        if let Some(pos) = guard.iter().position(|(id, _)| id == sub_id) {
-                            guard.remove(pos);
-                        }
-
-                        let mut cbs = callbacks.lock().unwrap();
-                        cbs.remove(sub_id);
-                    }
+                if handled_any {
+                    idle_sleep = Duration::from_millis(2);
+                } else {
+                    thread::sleep(idle_sleep);
+                    idle_sleep = std::cmp::min(max_sleep, idle_sleep * 2);
                 }
             }
         }));
@@ -139,13 +168,16 @@ impl EventHook {
     where
         F: FnMut(SubscriptionMessage) + Send + 'static,
     {
-        let sub_type = SubscriptionType::Key(KeySubscriptionTypes::Specific(key));
+        let sub_type = SubscriptionType::Key(
+            KeySubscriptionTypes::Specific(key),
+            super::manager::KeyAction::Pressed,
+        );
         let (recv, id) = self.subscribe(sub_type)?;
         {
-            self.callbacks
-                .lock()
-                .unwrap()
-                .insert(id, Box::new(callback));
+            let cb_arc: Callback = Arc::new(Mutex::new(
+                Box::new(callback) as Box<dyn FnMut(SubscriptionMessage) + Send>
+            ));
+            self.callbacks.lock().unwrap().insert(id, cb_arc);
         }
         {
             self.receivers.lock().unwrap().push((id, recv));

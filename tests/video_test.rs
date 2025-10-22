@@ -74,7 +74,7 @@ fn video_render_test() -> Result<(), AppError> {
         eprintln!("{}", lines.join(" "));
     }));
 
-    ltrender::init_terminal()?;
+    ltrender::initial_terminal_state()?;
     init_logger("./video_test.log")?;
     let ref_frame = create_first_frame();
     let sprite_size = generate_sprites(ref_frame.clone())?;

@@ -182,7 +182,7 @@ fn spawn_soft_wave(
 }
 
 pub fn main() -> Result<(), AppError> {
-    ltrender::init_terminal()?;
+    ltrender::initial_terminal_state()?;
     init_logger("./organic_swarm.log")?;
 
     // creating the tick manager for syncing the waves with the main swarm

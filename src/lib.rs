@@ -11,7 +11,7 @@ pub mod sprite_register;
 pub use sprite_register::{SpriteEntry, SpriteRegistry};
 
 pub mod term_utils;
-pub use term_utils::{init_terminal, restore_terminal};
+pub use term_utils::{initial_terminal_state, restore_terminal};
 
 pub mod error;
 pub use error::{DrawError, FileError};

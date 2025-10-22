@@ -90,11 +90,19 @@ pub enum KeySubscriptionTypes {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum KeyAction {
+    Any,
+    Pressed,
+    Released,
+    Repeated,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MouseAction {
     Any,
     Pressed,
     Released,
-    // If you want to support dragging explicitly later, add Dragging here.
+    //todo: add dragging?
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -116,7 +124,7 @@ pub enum MouseSubscriptionTypes {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub enum SubscriptionType {
     Mouse(MouseSubscriptionTypes),
-    Key(KeySubscriptionTypes),
+    Key(KeySubscriptionTypes, KeyAction),
     Resize,
     Paste,
     TerminalWindowFocus,
@@ -230,10 +238,16 @@ impl EventHandler {
 
 pub type SubscriptionID = usize;
 
+pub type KeySubscription = (
+    KeySubscriptionTypes,
+    KeyAction,
+    CbSender<SubscriptionMessage>,
+);
+
 #[derive(Debug, Default)]
 pub struct EventSubscribers {
     mouse: HashMap<SubscriptionID, (MouseSubscriptionTypes, CbSender<SubscriptionMessage>)>,
-    key: HashMap<SubscriptionID, (KeySubscriptionTypes, CbSender<SubscriptionMessage>)>,
+    key: HashMap<SubscriptionID, KeySubscription>,
     resize: HashMap<SubscriptionID, CbSender<SubscriptionMessage>>,
     paste: HashMap<SubscriptionID, CbSender<SubscriptionMessage>>,
     terminal_focus: HashMap<SubscriptionID, CbSender<SubscriptionMessage>>,
@@ -300,26 +314,47 @@ impl CrosstermEventManager {
                 }
             };
         }
-        fn send_subscription_message_to_key(
+        fn send_key_subscription_message(
             message: KeyMessage,
-            key_sub: &mut HashMap<
-                SubscriptionID,
-                (KeySubscriptionTypes, CbSender<SubscriptionMessage>),
-            >,
+            key_sub: &mut HashMap<SubscriptionID, KeySubscription>,
             targeted_screen: TargetScreen,
         ) {
             let keys: Vec<SubscriptionID> = key_sub.keys().cloned().collect();
             let mut error_ids = Vec::new();
 
             for id in keys {
-                if let Some((sub_type, sender)) = key_sub.get(&id) {
+                if let Some((sub_type, expected_key_action, sender)) = key_sub.get(&id) {
                     // does sub want this msg?
                     let should_send = match sub_type {
                         KeySubscriptionTypes::All => true,
                         KeySubscriptionTypes::Specific(expected_code) => match message {
-                            KeyMessage::Pressed(code)
-                            | KeyMessage::Released(code)
-                            | KeyMessage::Repeating(code) => *expected_code == code,
+                            KeyMessage::Pressed(code) => {
+                                if let KeyAction::Pressed = expected_key_action
+                                    && code == *expected_code
+                                {
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            KeyMessage::Released(code) => {
+                                if let KeyAction::Released = expected_key_action
+                                    && code == *expected_code
+                                {
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            KeyMessage::Repeating(code) => {
+                                if let KeyAction::Repeated = expected_key_action
+                                    && code == *expected_code
+                                {
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
                         },
                     };
 
@@ -520,8 +555,8 @@ impl CrosstermEventManager {
                             };
 
                             match subscription_type {
-                                SubscriptionType::Key(key_type) => {
-                                    sub.key.insert(idx, (key_type, sender));
+                                SubscriptionType::Key(key_type, key_action_type) => {
+                                    sub.key.insert(idx, (key_type, key_action_type, sender));
                                 }
                                 SubscriptionType::Mouse(mouse_type) => {
                                     sub.mouse.insert(idx, (mouse_type, sender));
@@ -547,22 +582,28 @@ impl CrosstermEventManager {
                     Ok(ev) => ev,
                     Err(_) => continue,
                 };
-                info!("manager handling event: {:?}", ev);
+                info!("received event: {:?}", ev);
                 match ev {
                     Event::Key(key_event) => {
                         let mut st = get_state!();
                         let mut sub = get_subscribers!();
                         let screen_event = (key_event, st.targeted_screen);
                         if screen_event.0.is_press() {
+                            // if the key was marked as pressed already, mark it as repeating
+                            let message = if st.pressed_keys.contains_key(&screen_event.0.code) {
+                                KeyMessage::Repeating(screen_event.0.code)
+                            } else {
+                                KeyMessage::Pressed(screen_event.0.code)
+                            };
                             st.pressed_keys.insert(screen_event.0.code, screen_event);
-                            send_subscription_message_to_key(
-                                KeyMessage::Pressed(screen_event.0.code),
+                            send_key_subscription_message(
+                                message,
                                 &mut sub.key,
                                 st.targeted_screen,
                             );
                         } else if screen_event.0.is_release() {
                             st.pressed_keys.remove(&screen_event.0.code);
-                            send_subscription_message_to_key(
+                            send_key_subscription_message(
                                 KeyMessage::Released(screen_event.0.code),
                                 &mut sub.key,
                                 st.targeted_screen,
