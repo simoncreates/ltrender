@@ -22,3 +22,7 @@ tick_manager_rs = "0.1.0"
 crossbeam-channel = "0.5.15"
 ctrlc = "3.5.0"
 
+[features]
+default = ["screen_select_subscription"]
+
+screen_select_subscription = []

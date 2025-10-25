@@ -4,6 +4,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, MouseButton, MouseEventKi
 use std::{
     collections::HashMap,
     fmt::{self, Formatter},
+    mem,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -261,10 +262,20 @@ pub struct CrosstermEventManager {
     reader_handle: Option<JoinHandle<()>>,
     global_recv: Option<Receiver<EventManagerCommand>>,
     subscribers: Arc<Mutex<EventSubscribers>>,
+    #[cfg(feature = "screen_select_subscription")]
+    screen_select_handler: Option<
+        Arc<(
+            Mutex<Receiver<Option<TargetScreen>>>,
+            Sender<SubscriptionMessage>,
+        )>,
+    >,
 }
 
 impl CrosstermEventManager {
     pub fn new(targeted_screen: TargetScreen) -> (Self, EventHandler) {
+        CrosstermEventManager::new_with_start(targeted_screen, true)
+    }
+    fn new_with_start(targeted_screen: TargetScreen, start: bool) -> (Self, EventHandler) {
         let state = EventManagerState {
             pressed_keys: HashMap::new(),
             terminal_size: (0, 0),
@@ -283,9 +294,25 @@ impl CrosstermEventManager {
             reader_handle: None,
             global_recv: Some(recv),
             subscribers: Arc::new(Mutex::new(EventSubscribers::default())),
+            #[cfg(feature = "screen_select_subscription")]
+            screen_select_handler: None,
         };
-        manager.start_reader_thread();
+        if start {
+            manager.start_reader_thread();
+        }
         (manager, handler)
+    }
+    #[cfg(feature = "screen_select_subscription")]
+    pub fn new_with_select_sub(
+        targeted_screen: TargetScreen,
+        select_recv: Receiver<Option<TargetScreen>>,
+    ) -> (Self, EventHandler, Receiver<SubscriptionMessage>) {
+        let (mut mngr, event_handler) =
+            CrosstermEventManager::new_with_start(targeted_screen, false);
+        let (s_sub, r_sub) = mpsc::channel();
+        mngr.screen_select_handler = Some(Arc::new((Mutex::new(select_recv), s_sub)));
+        mngr.start_reader_thread();
+        (mngr, event_handler, r_sub)
     }
 
     fn start_reader_thread(&mut self) {
@@ -294,6 +321,12 @@ impl CrosstermEventManager {
         let subscription_idx = Arc::clone(&self.subscription_idx);
         let subscribers = Arc::clone(&self.subscribers);
         let global_recv = self.global_recv.take().expect("global_recv already taken");
+        #[cfg(feature = "screen_select_subscription")]
+        let mut screen_select_handler = mem::take(&mut self.screen_select_handler);
+
+        // constants:
+        #[cfg(feature = "screen_select_subscription")]
+        let max_screen_selector_reponse_wait_time = Duration::from_millis(500);
 
         macro_rules! send_subscription_message_to {
             ($field:ident, $message:expr) => {
@@ -486,6 +519,51 @@ impl CrosstermEventManager {
             }
         }
 
+        // todo: make this function consume ev, bevcause of the String
+        #[cfg(feature = "screen_select_subscription")]
+        fn create_subscription_message_from_ev(
+            ev: &mut Event,
+            screen: TargetScreen,
+        ) -> SubscriptionMessage {
+            match ev {
+                Event::FocusGained => {
+                    SubscriptionMessage::TerminalWindowFocus(TerminalFocus::HasBeenFocused)
+                }
+                Event::FocusLost => {
+                    SubscriptionMessage::TerminalWindowFocus(TerminalFocus::HasBeenUnfocused)
+                }
+                Event::Key(k) => {
+                    let msg = if k.is_press() {
+                        KeyMessage::Pressed(k.code)
+                    } else if k.is_release() {
+                        KeyMessage::Released(k.code)
+                    } else {
+                        KeyMessage::Repeating(k.code)
+                    };
+                    SubscriptionMessage::Key { msg, screen }
+                }
+                Event::Mouse(m) => {
+                    let msg = match m.kind {
+                        MouseEventKind::Down(mb) => MouseMessage::Pressed(mb),
+                        MouseEventKind::Up(mb) => MouseMessage::Released(mb),
+                        MouseEventKind::Moved => MouseMessage::Move(m.row, m.row),
+                        MouseEventKind::ScrollDown => MouseMessage::ScrollDown,
+                        MouseEventKind::ScrollUp => MouseMessage::ScrollUp,
+                        // todo: implement these properly
+                        MouseEventKind::Drag(_) => MouseMessage::ScrollDown,
+                        MouseEventKind::ScrollLeft => MouseMessage::ScrollDown,
+                        MouseEventKind::ScrollRight => MouseMessage::ScrollDown,
+                    };
+                    SubscriptionMessage::Mouse { msg, screen }
+                }
+                Event::Paste(str) => SubscriptionMessage::Paste {
+                    content: Arc::new(str.clone()),
+                    screen,
+                },
+                Event::Resize(w, h) => SubscriptionMessage::Resize(*w, *h),
+            }
+        }
+
         macro_rules! send_subscription_message_to_paste {
             ($field:ident, $content:expr) => {
                 let mut sub = get_subscribers!();
@@ -578,11 +656,56 @@ impl CrosstermEventManager {
                 if !event::poll(Duration::from_millis(10)).unwrap_or(false) {
                     continue;
                 }
-                let ev = match event::read() {
+                let mut ev = match event::read() {
                     Ok(ev) => ev,
                     Err(_) => continue,
                 };
                 info!("received event: {:?}", ev);
+
+                // after an event is received, attempt to send a message to the screen selection handler, if one is present
+                // this will be done before all of the subscription message, to allow all the following ones to be sent to the correct screen directly
+                #[cfg(feature = "screen_select_subscription")]
+                if let Some(select_arc) = &mut screen_select_handler {
+                    let mut st = get_state!();
+
+                    let subscription_msg =
+                        create_subscription_message_from_ev(&mut ev, st.targeted_screen);
+
+                    match select_arc.1.send(subscription_msg) {
+                        Ok(()) => {}
+                        Err(_) => {
+                            return;
+                        }
+                    }
+
+                    let max_wait = max_screen_selector_reponse_wait_time;
+                    if let Ok(recv) = select_arc.0.lock() {
+                        use std::sync::mpsc::RecvTimeoutError;
+
+                        match recv.recv_timeout(max_wait) {
+                            Ok(opt_target_screen) => {
+                                if let Some(screen) = opt_target_screen {
+                                    info!("set target screen to: {:?}", screen);
+                                    st.targeted_screen = screen;
+                                } else {
+                                    info!("selector returned None");
+                                }
+                            }
+                            Err(RecvTimeoutError::Timeout) => {
+                                info!("timed out waiting for screen_select response");
+                            }
+                            Err(RecvTimeoutError::Disconnected) => {
+                                info!("selector channel disconnected");
+                            }
+                        }
+                    }
+                }
+                let st = get_state!();
+                info!(
+                    "got message: {:?}, current screen: {:?}",
+                    ev, st.targeted_screen
+                );
+                drop(st);
                 match ev {
                     Event::Key(key_event) => {
                         let mut st = get_state!();

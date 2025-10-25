@@ -11,8 +11,9 @@ use crossbeam_channel::{Receiver as CbReceiver, TryRecvError, unbounded};
 use crate::{
     error::EventCommunicationError,
     input_handler::manager::{
-        EventManagerCommand, EventManagerState, KeySubscriptionTypes, MouseButtonState,
-        SubscriptionID, SubscriptionMessage, SubscriptionType, TargetScreen,
+        EventManagerCommand, EventManagerState, KeyAction, KeySubscriptionTypes, MouseAction,
+        MouseButtonState, MouseButtons, MouseSubscriptionTypes, SubscriptionID,
+        SubscriptionMessage, SubscriptionType, TargetScreen,
     },
 };
 
@@ -92,11 +93,10 @@ impl EventHook {
                                     }
                                     Err(poisoned) => {
                                         log::warn!(
-                                            "callback mutex poisoned for subscription {:?}",
-                                            sub_id
+                                            "callback mutex poisoned for subscription {:?} with error: {:?}",
+                                            sub_id,
+                                            poisoned
                                         );
-                                        // attempt to recover
-                                        let _a = poisoned.into_inner();
                                     }
                                 }
                             }
@@ -129,7 +129,7 @@ impl EventHook {
         }));
     }
 
-    fn subscribe(
+    fn communicate_subscription(
         &self,
         sub_type: SubscriptionType,
     ) -> Result<(CbReceiver<SubscriptionMessage>, SubscriptionID), EventCommunicationError> {
@@ -168,11 +168,35 @@ impl EventHook {
     where
         F: FnMut(SubscriptionMessage) + Send + 'static,
     {
-        let sub_type = SubscriptionType::Key(
-            KeySubscriptionTypes::Specific(key),
-            super::manager::KeyAction::Pressed,
-        );
-        let (recv, id) = self.subscribe(sub_type)?;
+        let sub_type =
+            SubscriptionType::Key(KeySubscriptionTypes::Specific(key), KeyAction::Pressed);
+        self.subscribe(sub_type, callback)
+    }
+
+    pub fn on_mouse_button_press<F>(
+        &mut self,
+        msbutton: MouseButtons,
+        callback: F,
+    ) -> Result<(), EventCommunicationError>
+    where
+        F: FnMut(SubscriptionMessage) + Send + 'static,
+    {
+        let sub_type = SubscriptionType::Mouse(MouseSubscriptionTypes::ButtonAction(
+            msbutton,
+            MouseAction::Pressed,
+        ));
+        self.subscribe(sub_type, callback)
+    }
+
+    pub fn subscribe<F>(
+        &mut self,
+        sub_type: SubscriptionType,
+        callback: F,
+    ) -> Result<(), EventCommunicationError>
+    where
+        F: FnMut(SubscriptionMessage) + Send + 'static,
+    {
+        let (recv, id) = self.communicate_subscription(sub_type)?;
         {
             let cb_arc: Callback = Arc::new(Mutex::new(
                 Box::new(callback) as Box<dyn FnMut(SubscriptionMessage) + Send>
