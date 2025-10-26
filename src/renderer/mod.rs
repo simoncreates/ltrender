@@ -84,7 +84,6 @@ where
                 &self.sprites,
             )?;
             s.change_screen_area(new_area);
-            //todo: temporary?
             s.render_all(
                 &mut self.screen_buffer,
                 &mut self.obj_library,
@@ -109,6 +108,11 @@ where
                 &self.sprites,
             )?;
             s.change_screen_layer(new_layer);
+            s.render_all(
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
             self.refresh(false)?;
             Ok(())
         } else {

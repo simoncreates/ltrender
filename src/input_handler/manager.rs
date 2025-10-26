@@ -145,7 +145,6 @@ pub enum EventManagerCommand {
     Subscribe(SubscriptionType, CbSender<SubscriptionMessage>),
     // todo: add unsubscribing (canceling subscription?)
     // Unsubscribe(SubscriptionID)
-    // todo: add changing what screen is targeted
 }
 
 impl fmt::Display for EventManagerCommand {
@@ -689,8 +688,6 @@ impl CrosstermEventManager {
                                 if let Some(screen) = opt_target_screen {
                                     info!("set target screen to: {:?}", screen);
                                     st.targeted_screen = screen;
-                                } else {
-                                    info!("selector returned None");
                                 }
                             }
                             Err(RecvTimeoutError::Timeout) => {
@@ -702,10 +699,9 @@ impl CrosstermEventManager {
                         }
                     }
                 }
-                let st = get_state!();
-                drop(st);
                 match ev {
                     Event::Key(key_event) => {
+                        info!("handling key event: {:?}", key_event);
                         let mut st = get_state!();
                         let mut sub = get_subscribers!();
                         let screen_event = (key_event, st.targeted_screen);
@@ -864,8 +860,6 @@ impl CrosstermEventManager {
 
         self.reader_handle = Some(handle);
     }
-
-    /// stop the reader thread
     pub fn stop(&mut self) {
         self.shutdown_flag.store(true, Ordering::Relaxed);
         if let Some(h) = self.reader_handle.take() {

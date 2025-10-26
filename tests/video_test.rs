@@ -187,7 +187,6 @@ fn video_render_test() -> Result<(), AppError> {
     test_if_eq_at_pos(Point { x: 1, y: 1 }, Some(border_char));
 
     ltrender::restore_terminal()?;
-    manager.stop();
     Ok(())
 }
 

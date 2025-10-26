@@ -1,4 +1,5 @@
 use crossterm::event::{KeyCode, MouseButton};
+use log::info;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -216,8 +217,10 @@ impl EventHook {
             .input_manager_state
             .lock()
             .unwrap_or_else(|p| p.into_inner());
-
-        match button {
+        if !st.pressed_keys.is_empty() {
+            info!("checking is pressed with: {:?}", st.pressed_keys)
+        }
+        let result = match button {
             InputButton::Key(key) => st.pressed_keys.contains_key(&key),
             InputButton::Mouse(btn) => match btn {
                 MouseButton::Left => {
@@ -233,7 +236,9 @@ impl EventHook {
                         || st.mouse_state.middle_pressed == MouseButtonState::Dragging
                 }
             },
-        }
+        };
+        info!("is_pressed({:?}) -> {}", button, result);
+        result
     }
 
     pub fn is_pressed_with_screen(&self, button: InputButton) -> Option<TargetScreen> {

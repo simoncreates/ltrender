@@ -3,12 +3,12 @@ use common_stdx::Rect;
 use crossterm::{event::KeyCode, terminal::size};
 use log::info;
 use ltrender::{
-    CrosstermEventManager, DrawObjectBuilder, ScreenKey,
+    DrawObjectBuilder, ScreenKey,
     display_screen::ScreenAreaRect,
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
-    input_handler::{hook::InputButton, manager::TargetScreen},
+    input_handler::hook::InputButton,
     renderer::{RenderMode, RendererHandle, render_handle::RendererManager},
     restore_terminal,
     terminal_buffer::buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
@@ -92,15 +92,13 @@ pub fn main() -> Result<(), AppError> {
     init_logger("./screens_showcase.log")?;
 
     let (cols, rows) = size()?;
-    let (_manager, mut r) =
-        RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 100);
+    let (_manager, mut r, ev_handler) = RendererManager::new_with_ev_handler::<
+        DefaultScreenBuffer<CrosstermCellDrawer>,
+    >((cols, rows), 100);
     r.set_update_interval(1);
     r.set_render_mode(RenderMode::Instant);
 
-    let (_event_manager, event_handler, _screen_sh) =
-        CrosstermEventManager::new_with_select_sub(TargetScreen::None);
-
-    let hook = event_handler.create_hook();
+    let hook = ev_handler.create_hook();
 
     let mut ad_screens = AdjustableScreens::new_uniform_grid(WIDTH, HEIGHT, &mut r);
     let mut builder = DrawObjectBuilder::default();
@@ -119,7 +117,7 @@ pub fn main() -> Result<(), AppError> {
             )
             .border_thickness(1)
             .fill_style(' ')
-            .rect(Rect::from_coords(0, 0, 0, 0))
+            .rect(Rect::from_coords(0, 0, 2, 2))
             })?
             .add_lifetime(ObjectLifetime::ExplicitRemove)
             .screen(screen)
@@ -129,8 +127,10 @@ pub fn main() -> Result<(), AppError> {
     }
     loop {
         if hook.is_pressed(InputButton::Key(KeyCode::Char('c'))) {
+            info!("breaking out of the loop");
             break;
         }
+
         let cur_size = size()?;
         let rendered_size = r.get_terminal_size();
         if cur_size != rendered_size {
@@ -142,5 +142,6 @@ pub fn main() -> Result<(), AppError> {
             ad_screens.place_screens_uniformly(&mut r);
         }
     }
+    info!("returning with ok");
     Ok(())
 }

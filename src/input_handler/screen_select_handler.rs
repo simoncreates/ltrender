@@ -9,6 +9,7 @@ use std::{
 
 pub type ScreenSelectcallback = Box<dyn FnMut(SubscriptionMessage) -> Option<TargetScreen> + Send>;
 
+#[derive(Debug)]
 pub struct ScreenSelectHandler {
     recv: Arc<Mutex<Receiver<SubscriptionMessage>>>,
     send: Arc<Sender<Option<TargetScreen>>>,
@@ -27,6 +28,11 @@ impl ScreenSelectHandler {
     pub fn recv(&self) -> Result<SubscriptionMessage, mpsc::RecvError> {
         let recv = self.recv.lock().unwrap();
         recv.recv()
+    }
+
+    pub fn try_recv(&self) -> Result<SubscriptionMessage, mpsc::TryRecvError> {
+        let recv = self.recv.lock().unwrap();
+        recv.try_recv()
     }
 
     pub fn send(
