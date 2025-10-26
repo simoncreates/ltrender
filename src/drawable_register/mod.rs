@@ -13,7 +13,7 @@ pub struct DrawObjectKey {
     pub object_id: ObjectId,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 
 pub enum ObjectLifetime {
     RemoveNextFrame,

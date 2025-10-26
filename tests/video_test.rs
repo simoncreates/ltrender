@@ -359,13 +359,13 @@ fn test_if_video_exist(
 
 #[track_caller]
 fn test_if_screen_doesnt_exit() {
-    if let Some(data) = wait_for_test_data(10) {
-        if !data.content.is_empty() {
-            panic!(
-                "data should be empty but isn't. debug: {}",
-                dump_test_data_brief(Some(data))
-            )
-        }
+    if let Some(data) = wait_for_test_data(10)
+        && !data.content.is_empty()
+    {
+        panic!(
+            "data should be empty but isn't. debug: {}",
+            dump_test_data_brief(Some(data))
+        )
     }
 }
 fn init_logger(path: &str) -> Result<(), AppError> {

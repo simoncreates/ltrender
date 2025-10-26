@@ -110,10 +110,7 @@ impl DrawObjectBuilder {
             .take()
             .ok_or(DrawObjectBuilderError::NoDrawableAdded())?;
 
-        let lifetime = self
-            .lt
-            .take()
-            .ok_or(DrawObjectBuilderError::NoLifetimeAdded())?;
+        let lifetime = self.lt.ok_or(DrawObjectBuilderError::NoLifetimeAdded())?;
 
         render_handle
             .register_drawable(

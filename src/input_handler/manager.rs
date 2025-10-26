@@ -14,6 +14,8 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "screen_select_subscription")]
+use crate::input_handler::screen_select_handler::ScreenSelectHandler;
 use log::{info, warn};
 
 //_____  all the enums, that will be sent to the subscribed hooks _____
@@ -254,6 +256,11 @@ pub struct EventSubscribers {
     terminal_focus: HashMap<SubscriptionID, CbSender<SubscriptionMessage>>,
 }
 
+pub type ScreenSelectPreprocessing = Arc<(
+    Mutex<Receiver<Option<TargetScreen>>>,
+    Sender<SubscriptionMessage>,
+)>;
+
 #[derive(Debug)]
 pub struct CrosstermEventManager {
     state: Arc<Mutex<EventManagerState>>,
@@ -263,12 +270,7 @@ pub struct CrosstermEventManager {
     global_recv: Option<Receiver<EventManagerCommand>>,
     subscribers: Arc<Mutex<EventSubscribers>>,
     #[cfg(feature = "screen_select_subscription")]
-    screen_select_handler: Option<
-        Arc<(
-            Mutex<Receiver<Option<TargetScreen>>>,
-            Sender<SubscriptionMessage>,
-        )>,
-    >,
+    screen_select_handler: Option<ScreenSelectPreprocessing>,
 }
 
 impl CrosstermEventManager {
@@ -305,14 +307,15 @@ impl CrosstermEventManager {
     #[cfg(feature = "screen_select_subscription")]
     pub fn new_with_select_sub(
         targeted_screen: TargetScreen,
-        select_recv: Receiver<Option<TargetScreen>>,
-    ) -> (Self, EventHandler, Receiver<SubscriptionMessage>) {
+    ) -> (Self, EventHandler, ScreenSelectHandler) {
+        let (select_sender, select_recv) = mpsc::channel();
         let (mut mngr, event_handler) =
             CrosstermEventManager::new_with_start(targeted_screen, false);
         let (s_sub, r_sub) = mpsc::channel();
         mngr.screen_select_handler = Some(Arc::new((Mutex::new(select_recv), s_sub)));
         mngr.start_reader_thread();
-        (mngr, event_handler, r_sub)
+        let ssh = ScreenSelectHandler::new(r_sub, select_sender);
+        (mngr, event_handler, ssh)
     }
 
     fn start_reader_thread(&mut self) {
@@ -326,7 +329,7 @@ impl CrosstermEventManager {
 
         // constants:
         #[cfg(feature = "screen_select_subscription")]
-        let max_screen_selector_reponse_wait_time = Duration::from_millis(500);
+        let max_screen_selector_reponse_wait_time = Duration::from_millis(1);
 
         macro_rules! send_subscription_message_to {
             ($field:ident, $message:expr) => {
@@ -660,7 +663,6 @@ impl CrosstermEventManager {
                     Ok(ev) => ev,
                     Err(_) => continue,
                 };
-                info!("received event: {:?}", ev);
 
                 // after an event is received, attempt to send a message to the screen selection handler, if one is present
                 // this will be done before all of the subscription message, to allow all the following ones to be sent to the correct screen directly
@@ -701,10 +703,6 @@ impl CrosstermEventManager {
                     }
                 }
                 let st = get_state!();
-                info!(
-                    "got message: {:?}, current screen: {:?}",
-                    ev, st.targeted_screen
-                );
                 drop(st);
                 match ev {
                     Event::Key(key_event) => {

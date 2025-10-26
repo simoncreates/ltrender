@@ -84,6 +84,12 @@ where
                 &self.sprites,
             )?;
             s.change_screen_area(new_area);
+            //todo: temporary?
+            s.render_all(
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
             self.refresh(false)?;
             Ok(())
         } else {
@@ -200,12 +206,11 @@ where
                     object_id: *obj_id,
                 };
 
-                if let Some(obj) = self.obj_library.all_objects.get(key) {
-                    if let ObjectLifetime::ForTime(dur) = obj.lifetime {
-                        if now >= obj.creation_time + dur {
-                            expired_keys.push(*key);
-                        }
-                    }
+                if let Some(obj) = self.obj_library.all_objects.get(key)
+                    && let ObjectLifetime::ForTime(dur) = obj.lifetime
+                    && now >= obj.creation_time + dur
+                {
+                    expired_keys.push(*key);
                 }
             }
         }
@@ -227,10 +232,10 @@ where
                     screen_id: *screen_id,
                     object_id: *obj_id,
                 };
-                if let Some(obj) = self.obj_library.all_objects.get(key) {
-                    if let ObjectLifetime::RemoveNextFrame = obj.lifetime {
-                        expired_keys.push(*key);
-                    }
+                if let Some(obj) = self.obj_library.all_objects.get(key)
+                    && let ObjectLifetime::RemoveNextFrame = obj.lifetime
+                {
+                    expired_keys.push(*key);
                 }
             }
         }
@@ -273,7 +278,7 @@ where
         }
     }
     /// Render all objects on all screens.
-    fn render_all(&mut self) -> Result<(), DrawError> {
+    fn render_all(&mut self, forced: bool) -> Result<(), DrawError> {
         for screen in self.screens.values_mut() {
             screen.render_all(
                 &mut self.screen_buffer,
@@ -281,17 +286,18 @@ where
                 &self.sprites,
             )?;
         }
-        self.refresh(false)?;
+        self.refresh(forced)?;
         Ok(())
     }
 
     pub fn handle_resize(&mut self, new_size: (u16, u16)) -> Result<(), DrawError> {
         self.screen_buffer = B::new(new_size);
+        self.terminal_size = new_size;
         for screen in self.screens.values_mut() {
             screen.terminal_size = self.terminal_size
         }
         B::mark_all_dirty(&mut self.screen_buffer, new_size);
-        self.render_all()?;
+        self.render_all(false)?;
         Ok(())
     }
 
@@ -304,9 +310,8 @@ where
     }
 
     pub fn render_frame(&mut self) -> Result<(), DrawError> {
-        self.render_all()?;
+        self.render_all(true)?;
 
-        self.refresh(true)?;
         self.remove_all_framebased_objects()?;
         Ok(())
     }

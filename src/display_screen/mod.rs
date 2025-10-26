@@ -13,6 +13,29 @@ pub enum ScreenPoint {
     TopLeft,
     TopRight,
 }
+
+impl From<(usize, usize)> for ScreenPoint {
+    fn from(value: (usize, usize)) -> Self {
+        let x = value.0.clamp(0, i32::MAX as usize) as i32;
+        let y = value.1.clamp(0, i32::MAX as usize) as i32;
+        ScreenPoint::Point(Point::from((x, y)))
+    }
+}
+
+impl From<(u16, u16)> for ScreenPoint {
+    fn from(value: (u16, u16)) -> Self {
+        let x = value.0.clamp(0, i32::MAX as u16) as i32;
+        let y = value.1.clamp(0, i32::MAX as u16) as i32;
+        ScreenPoint::Point(Point::from((x, y)))
+    }
+}
+
+impl From<(i32, i32)> for ScreenPoint {
+    fn from(value: (i32, i32)) -> Self {
+        ScreenPoint::Point(Point::from(value))
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ScreenAreaRect {
     FromPoints(ScreenPoint, ScreenPoint),

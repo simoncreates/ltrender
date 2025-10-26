@@ -1,4 +1,4 @@
-use std::{process::exit, sync::mpsc, thread};
+use std::{process::exit, thread};
 
 use crossterm::event::{KeyCode, MouseButton};
 use log::info;
@@ -14,13 +14,12 @@ use ltrender::{
 fn main() {
     init_terminal!();
     init_logger("./input_handler_test.log").unwrap();
-    let (send_select, recv_select) = mpsc::channel();
-    let (_input_manager, input_handler, selector_sub) =
-        CrosstermEventManager::new_with_select_sub(TargetScreen::None, recv_select);
+    let (_input_manager, input_handler, screen_select_h) =
+        CrosstermEventManager::new_with_select_sub(TargetScreen::None);
     let handle = thread::spawn(move || {
         macro_rules! try_send {
             ($message: expr) => {
-                if let Err(e) = send_select.send($message) {
+                if let Err(e) = screen_select_h.send($message) {
                     info!("error sending select {:?}", e);
                     break;
                 } else {
@@ -28,7 +27,7 @@ fn main() {
             };
         }
         loop {
-            if let Ok(sm) = selector_sub.recv()
+            if let Ok(sm) = screen_select_h.recv()
                 && let SubscriptionMessage::Mouse {
                     msg,
                     screen: _screen,
@@ -55,5 +54,3 @@ fn main() {
     handle.join().unwrap();
     restore_terminal().unwrap();
 }
-
-// cargo run --example input_handler --release

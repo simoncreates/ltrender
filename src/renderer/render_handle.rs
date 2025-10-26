@@ -1,5 +1,5 @@
 use std::{
-    sync::mpsc::{self, Receiver, SyncSender},
+    sync::mpsc::{self, Receiver, Sender, SyncSender},
     thread,
     time::Duration,
 };
@@ -100,6 +100,12 @@ impl RendererHandle {
     pub fn handle_resize(&self, new_size: (u16, u16)) {
         let _ = self.tx.send(RendererCommand::HandleResize(new_size));
     }
+
+    pub fn get_terminal_size(&self) -> (u16, u16) {
+        let (reply_tx, reply_rx) = mpsc::channel();
+        let _ = self.tx.send(RendererCommand::GetCurrentSize(reply_tx));
+        reply_rx.recv().unwrap()
+    }
 }
 
 pub struct RendererManager {
@@ -115,7 +121,7 @@ impl RendererManager {
         B::Drawer: CellDrawer + Send + 'static,
     {
         let (tx, rx) = mpsc::sync_channel(buffer_size);
-        let join_handle = run_renderer::<B>(size, rx); // <-- specify B here
+        let join_handle = run_renderer::<B>(size, rx);
         let checker_join_handle = run_object_lifetime_checker(tx.clone());
 
         let manager = RendererManager {
@@ -234,9 +240,14 @@ where
                 RendererCommand::HandleResize(new_size) => {
                     let _ = r.handle_resize(new_size);
                 }
+                RendererCommand::GetCurrentSize(sender) => {
+                    let res = r.terminal_size;
+                    let _ = sender.send(res);
+                }
                 RendererCommand::RenderFrame => {
                     let _ = r.render_frame();
                 }
+
                 RendererCommand::Stop => break,
             }
         }
@@ -247,18 +258,18 @@ where
 pub enum RendererCommand {
     SetRenderMode(RenderMode),
     SetUpdateInterval(usize),
-    CreateScreen(ScreenAreaRect, usize, std::sync::mpsc::Sender<ScreenKey>),
+    CreateScreen(ScreenAreaRect, usize, Sender<ScreenKey>),
     ChangeScreenArea(ScreenKey, ScreenAreaRect),
     ChangeScreenLayer(ScreenKey, usize),
     CheckIfObjectLifetimeEnded(),
     RegisterDrawable(
         ScreenKey,
         DrawObject,
-        std::sync::mpsc::Sender<Result<DrawObjectKey, DrawError>>,
+        Sender<Result<DrawObjectKey, DrawError>>,
     ),
     ReplaceDrawable(DrawObjectKey, Box<dyn Drawable>),
     RemoveDrawable(DrawObjectKey),
-    RegisterSpriteFromSource(String, std::sync::mpsc::Sender<Result<SpriteId, AppError>>),
+    RegisterSpriteFromSource(String, Sender<Result<SpriteId, AppError>>),
     RenderDrawable(DrawObjectKey),
     ExplicitRemoveDrawable(DrawObjectKey),
     ReplaceDrawablePoints(DrawObjectKey, Vec<Point<i32>>),
@@ -267,6 +278,7 @@ pub enum RendererCommand {
     MoveDrawablePoint(DrawObjectKey, usize, Point<i32>),
     MoveMultiPointDrawablePoint(DrawObjectKey, usize, Point<i32>),
     HandleResize((u16, u16)),
+    GetCurrentSize(Sender<(u16, u16)>),
     RenderFrame,
     Stop,
 }
