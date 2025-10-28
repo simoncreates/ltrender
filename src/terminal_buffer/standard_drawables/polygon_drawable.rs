@@ -230,9 +230,6 @@ impl Drawable for PolygonDrawable {
     fn as_multi_pointed_mut(&mut self) -> Option<&mut dyn MultiPointed> {
         Some(self)
     }
-    fn as_multi_pointed(&self) -> Option<&dyn MultiPointed> {
-        Some(self)
-    }
 
     fn draw(&mut self, _: &crate::SpriteRegistry) -> Result<BasicDrawCreator, crate::DrawError> {
         let (border_set, _ivs) = compute_border_and_bounding(&self.points);

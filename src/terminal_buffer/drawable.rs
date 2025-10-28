@@ -4,7 +4,7 @@ use crate::{
 };
 
 use ascii_assets::TerminalChar;
-use common_stdx::Point;
+use common_stdx::{Point, Rect};
 use log::warn;
 
 #[derive(Debug, Clone, Copy)]
@@ -55,7 +55,7 @@ pub trait Drawable: std::fmt::Debug + Send {
     fn as_multi_pointed_mut(&mut self) -> Option<&mut dyn MultiPointed> {
         None
     }
-    fn as_multi_pointed(&self) -> Option<&dyn MultiPointed> {
+    fn as_screen_fitting_mut(&mut self) -> Option<&mut dyn ScreenFitting> {
         None
     }
 }
@@ -93,4 +93,17 @@ pub trait MultiPointed {
     fn points(&self) -> &[Point<i32>];
     /// replace all current points
     fn set_points(&mut self, points: Vec<Point<i32>>);
+}
+
+/// If implemented, this function will be ran, if a screens size changes.
+///
+/// ## Requirements:
+/// Requires as_screen_fitting to be implemented in the Drawable trait
+///
+/// ## Example:
+/// When implemententing a RectDrawable you can make this function just replace the internal rect field.
+/// On the next Draw the RectangleDrawable will be displayed as having the same size as the screen
+///
+pub trait ScreenFitting {
+    fn fit_to_screen(&mut self, rect: Rect<i32>);
 }

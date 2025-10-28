@@ -4,7 +4,7 @@ use crossterm::{event::KeyCode, terminal::size};
 use log::info;
 use ltrender::{
     DrawObjectBuilder, ScreenKey,
-    display_screen::ScreenAreaRect,
+    display_screen::AreaRect,
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
@@ -29,9 +29,8 @@ impl AdjustableScreens {
         for _ in 0..amount_screens_y {
             let mut screen_row = Vec::new();
             for _ in 0..amount_screens_x {
-                screen_row.push(
-                    r.create_screen(ScreenAreaRect::FromPoints((0, 0).into(), (0, 0).into()), 0),
-                );
+                screen_row
+                    .push(r.create_screen(AreaRect::FromPoints((0, 0).into(), (0, 0).into()), 0));
             }
             screens.push(screen_row);
         }
@@ -50,7 +49,7 @@ impl AdjustableScreens {
             for (j, screen) in screen_row.iter().enumerate() {
                 r.change_screen_area(
                     *screen,
-                    ScreenAreaRect::FromPoints(
+                    AreaRect::FromPoints(
                         (j * screens_each_width, i * screens_each_height).into(),
                         (
                             (j + 1) * screens_each_width - 1,
@@ -142,6 +141,7 @@ pub fn main() -> Result<(), AppError> {
             ad_screens.place_screens_uniformly(&mut r);
         }
     }
+    restore_terminal()?;
     info!("returning with ok");
     Ok(())
 }

@@ -1,6 +1,5 @@
 use core::panic;
 use std::{
-    process::exit,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -18,7 +17,7 @@ use crate::input_handler::screen_select_handler::ScreenSelectHandler;
 use crate::{
     CrosstermEventManager, DrawError, DrawObject, DrawObjectKey, Renderer, ScreenBuffer, ScreenKey,
     SpriteId,
-    display_screen::ScreenAreaRect,
+    display_screen::AreaRect,
     error::AppError,
     input_handler::manager::{EventHandler, MouseMessage, SubscriptionMessage, TargetScreen},
     renderer::RenderMode,
@@ -39,7 +38,7 @@ impl RendererHandle {
         let _ = self.tx.send(RendererCommand::SetRenderMode(mode));
     }
 
-    pub fn create_screen(&self, area: ScreenAreaRect, layer: usize) -> ScreenKey {
+    pub fn create_screen(&self, area: AreaRect, layer: usize) -> ScreenKey {
         let (reply_tx, reply_rx) = mpsc::channel();
         let _ = self
             .tx
@@ -47,7 +46,7 @@ impl RendererHandle {
         reply_rx.recv().unwrap()
     }
 
-    pub fn change_screen_area(&self, screen_id: ScreenKey, new_area: ScreenAreaRect) {
+    pub fn change_screen_area(&self, screen_id: ScreenKey, new_area: AreaRect) {
         let _ = self
             .tx
             .send(RendererCommand::ChangeScreenArea(screen_id, new_area));
@@ -341,8 +340,8 @@ where
 pub enum RendererCommand {
     SetRenderMode(RenderMode),
     SetUpdateInterval(usize),
-    CreateScreen(ScreenAreaRect, usize, Sender<ScreenKey>),
-    ChangeScreenArea(ScreenKey, ScreenAreaRect),
+    CreateScreen(AreaRect, usize, Sender<ScreenKey>),
+    ChangeScreenArea(ScreenKey, AreaRect),
     ChangeScreenLayer(ScreenKey, usize),
     CheckIfObjectLifetimeEnded(),
     RegisterDrawable(

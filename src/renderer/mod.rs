@@ -1,5 +1,5 @@
 use crate::ScreenBuffer;
-use crate::display_screen::ScreenAreaRect;
+use crate::display_screen::AreaRect;
 use crate::drawable_register::ObjectLifetime;
 use crate::terminal_buffer::CellDrawer;
 use crate::terminal_buffer::drawable::Drawable;
@@ -8,7 +8,7 @@ use crate::{
     SpriteRegistry, error::AppError,
 };
 use ascii_assets::AsciiVideo;
-use common_stdx::Point;
+use common_stdx::{Point, Rect};
 use log::info;
 use std::collections::HashMap; // bring the trait into scope
 
@@ -65,7 +65,7 @@ where
     }
 
     /// Create a new screen and return its key.
-    pub fn create_screen(&mut self, rect: ScreenAreaRect, layer: usize) -> ScreenKey {
+    pub fn create_screen(&mut self, rect: AreaRect, layer: usize) -> ScreenKey {
         let new_id = self.generate_screen_key();
         self.screens
             .insert(new_id, Screen::new(rect, layer, new_id, self.terminal_size));
@@ -75,7 +75,7 @@ where
     pub fn change_screen_area(
         &mut self,
         screen_id: ScreenKey,
-        new_area: ScreenAreaRect,
+        new_area: AreaRect,
     ) -> Result<(), DrawError> {
         if let Some(s) = self.screens.get_mut(&screen_id) {
             s.remove_all(
@@ -84,11 +84,26 @@ where
                 &self.sprites,
             )?;
             s.change_screen_area(new_area);
-            s.render_all(
-                &mut self.screen_buffer,
-                &mut self.obj_library,
-                &self.sprites,
-            )?;
+            let ids = s.draw_objects.to_vec();
+            let screen_rect = s.rect();
+
+            for object_id in ids {
+                self.run_drawable_screen_fitting(
+                    DrawObjectKey {
+                        screen_id,
+                        object_id,
+                    },
+                    screen_rect,
+                )?;
+            }
+
+            if let Some(s) = self.screens.get_mut(&screen_id) {
+                s.render_all(
+                    &mut self.screen_buffer,
+                    &mut self.obj_library,
+                    &self.sprites,
+                )?;
+            }
             self.refresh(false)?;
             Ok(())
         } else {
@@ -129,6 +144,15 @@ where
         if let Some(s) = self.screens.get_mut(&screen_id) {
             let new_obj_id = self.obj_library.add_obj(screen_id, obj);
             s.register_drawable(new_obj_id, &self.obj_library);
+            let area = s.rect();
+            self.run_drawable_screen_fitting(
+                DrawObjectKey {
+                    object_id: new_obj_id,
+                    screen_id,
+                },
+                area,
+            )?;
+            self.refresh(false)?;
             Ok(DrawObjectKey {
                 screen_id,
                 object_id: new_obj_id,
@@ -266,14 +290,9 @@ where
             if let Some(obj) = self.obj_library.get_mut(&object_key) {
                 obj.creation_time = Instant::now()
             }
+            let area = s.rect();
 
             s.register_drawable(object_key.object_id, &self.obj_library);
-            s.render_drawable(
-                object_key.object_id,
-                &mut self.screen_buffer,
-                &mut self.obj_library,
-                &self.sprites,
-            )?;
 
             self.refresh(false)?;
             Ok(())
@@ -329,32 +348,33 @@ where
         id
     }
 
-    fn get_drawable<F, T>(&self, object_key: DrawObjectKey, mut get_fn: F) -> Result<T, DrawError>
-    where
-        F: FnMut(&dyn Drawable) -> Result<T, DrawError>,
-    {
-        if let Some(obj) = self.obj_library.find_drawable(&object_key) {
-            get_fn(&*obj.drawable)
-        } else {
-            Err(DrawError::DrawableHandleNotFound {
-                screen_id: object_key.screen_id,
-                obj_id: object_key.object_id,
-            })
-        }
-    }
+    //fn get_drawable<F, R>(&self, object_key: DrawObjectKey, mut get_fn: F) -> Result<R, DrawError>
+    //where
+    //    F: FnMut(&dyn Drawable) -> Result<R, DrawError>,
+    //{
+    //    if let Some(obj) = self.obj_library.find_drawable(&object_key) {
+    //        get_fn(&*obj.drawable)
+    //    } else {
+    //        Err(DrawError::DrawableHandleNotFound {
+    //            screen_id: object_key.screen_id,
+    //            obj_id: object_key.object_id,
+    //        })
+    //    }
+    //}
 
     /// general update function
-    fn update_drawable<F>(
+    /// todo: potential issues with frame based rendering
+    /// does the drawable just dissapear on screen after having been accesed using this function
+    fn get_drawable_mut<F, R>(
         &mut self,
         object_key: DrawObjectKey,
         mut update_fn: F,
-    ) -> Result<(), DrawError>
+    ) -> Result<R, DrawError>
     where
-        F: FnMut(&mut dyn Drawable),
+        F: FnMut(&mut dyn Drawable) -> R,
     {
         self.remove_drawable(object_key)?;
-
-        {
+        let result = {
             let obj =
                 self.obj_library
                     .get_mut(&object_key)
@@ -362,14 +382,14 @@ where
                         screen_id: object_key.screen_id,
                         obj_id: object_key.object_id,
                     })?;
-            update_fn(&mut *obj.drawable);
-        }
+            update_fn(&mut *obj.drawable)
+        };
 
         if self.render_mode == RenderMode::Instant {
             self.render_drawable(object_key)?;
         }
 
-        Ok(())
+        Ok(result)
     }
 
     pub fn move_drawable_to(
@@ -377,7 +397,7 @@ where
         handle: DrawObjectKey,
         new_pos: Point<i32>,
     ) -> Result<(), DrawError> {
-        self.update_drawable(handle, |drawable| {
+        self.get_drawable_mut(handle, |drawable| {
             if let Some(dp) = drawable.as_double_pointed_mut() {
                 let old_start = dp.start();
                 let old_end = dp.end();
@@ -400,7 +420,7 @@ where
         dx: i32,
         dy: i32,
     ) -> Result<(), DrawError> {
-        self.update_drawable(handle, |drawable| {
+        self.get_drawable_mut(handle, |drawable| {
             if let Some(dp) = drawable.as_double_pointed_mut() {
                 let start = dp.start();
                 let end = dp.end();
@@ -428,7 +448,7 @@ where
         point_index: usize,
         new_pos: Point<i32>,
     ) -> Result<(), DrawError> {
-        self.update_drawable(handle, |drawable| {
+        self.get_drawable_mut(handle, |drawable| {
             if let Some(dp) = drawable.as_double_pointed_mut() {
                 let clamped = Point {
                     x: (new_pos.x).clamp(0, i32::MAX),
@@ -448,7 +468,7 @@ where
         point_index: usize,
         new_pos: Point<i32>,
     ) -> Result<(), DrawError> {
-        self.update_drawable(handle, |drawable| {
+        self.get_drawable_mut(handle, |drawable| {
             if let Some(mp) = drawable.as_multi_pointed_mut() {
                 let clamped = Point {
                     x: (new_pos.x).clamp(0, i32::MAX),
@@ -464,7 +484,7 @@ where
         handle: DrawObjectKey,
         new_points: Vec<Point<i32>>,
     ) -> Result<(), DrawError> {
-        self.update_drawable(handle, |drawable| {
+        self.get_drawable_mut(handle, |drawable| {
             if let Some(mp) = drawable.as_multi_pointed_mut() {
                 mp.set_points(new_points.clone());
             } else if let Some(dp) = drawable.as_double_pointed_mut() {
@@ -492,13 +512,37 @@ where
         })
     }
 
-    pub fn get_amount_of_points(&self, handle: DrawObjectKey) -> Result<Option<usize>, DrawError> {
-        self.get_drawable(handle, |drawable| {
-            if let Some(mp) = drawable.as_multi_pointed() {
-                Ok(Some(mp.points().len()))
+    pub fn run_drawable_screen_fitting(
+        &mut self,
+        handle: DrawObjectKey,
+        // not yet normalized to (0,0) as the top left corner
+        unadjusted_screen_area: Rect<i32>,
+    ) -> Result<(), DrawError> {
+        let adjusted_area = Rect {
+            p1: Point::from((0, 0)),
+            p2: unadjusted_screen_area.p2 - unadjusted_screen_area.p1,
+        };
+        self.get_drawable_mut(handle, |drawable| {
+            if let Some(sf) = drawable.as_screen_fitting_mut() {
+                sf.fit_to_screen(adjusted_area);
+            }
+        })
+    }
+
+    pub fn get_amount_of_points(
+        &mut self,
+        handle: DrawObjectKey,
+    ) -> Result<Option<usize>, DrawError> {
+        self.get_drawable_mut(handle, |drawable| {
+            if let Some(mp) = drawable.as_multi_pointed_mut() {
+                Some(mp.points().len())
+            } else if drawable.as_double_pointed_mut().is_some() {
+                Some(2)
+            } else if drawable.as_single_pointed_mut().is_some() {
+                Some(1)
             } else {
                 info!("Drawable is not multipointed");
-                Ok(None)
+                None
             }
         })
     }

@@ -13,6 +13,7 @@ use std::io::{Result, stdout};
 macro_rules! init_terminal {
     () => {
         $crate::initial_terminal_state().unwrap();
+        $crate::term_utils::restore_terminal().unwrap();
         ctrlc::set_handler(|| {
             let _ = restore_terminal();
             std::process::exit(130);

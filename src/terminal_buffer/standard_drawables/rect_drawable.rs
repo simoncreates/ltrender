@@ -1,6 +1,9 @@
 use crate::{
     DrawError, SpriteRegistry,
-    terminal_buffer::{BasicDrawCreator, Drawable, drawable::DoublePointed},
+    terminal_buffer::{
+        BasicDrawCreator, Drawable,
+        drawable::{DoublePointed, ScreenFitting},
+    },
     update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;
@@ -190,5 +193,14 @@ impl Drawable for RectDrawable {
         }
 
         Some(c)
+    }
+    fn as_screen_fitting_mut(&mut self) -> Option<&mut dyn ScreenFitting> {
+        Some(self)
+    }
+}
+
+impl ScreenFitting for RectDrawable {
+    fn fit_to_screen(&mut self, rect: Rect<i32>) {
+        self.rect = rect;
     }
 }

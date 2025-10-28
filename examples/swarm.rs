@@ -3,7 +3,7 @@ use common_stdx::{Point, Rect};
 use crossterm::event::{Event, KeyCode, MouseEventKind, poll, read};
 use crossterm::terminal::size;
 use log::info;
-use ltrender::display_screen::ScreenAreaRect;
+use ltrender::display_screen::AreaRect;
 use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermCellDrawer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use rand::Rng;
@@ -192,14 +192,12 @@ pub fn main() -> Result<(), AppError> {
     let bg_member = tick_manager_rs::TickMember::new(manager_handle, 6);
 
     let (cols, rows) = size()?;
-    let (manager, mut r) =
+    let (_manager, mut r) =
         RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 100);
     r.set_update_interval(16);
 
-    // One screen spanning the whole terminal.
-    let screen = r.create_screen(ScreenAreaRect::FullScreen, 5);
+    let screen = r.create_screen(AreaRect::FullScreen, 5);
 
-    // Gentle animated background (kept subtle by Grayscale shader on the sprite video).
     let (tx, video_drawable) = make_videostream_drawable((0, 0), 1)?;
     let video_id = DrawObjectBuilder::default()
         .layer(1)
@@ -363,14 +361,13 @@ pub fn main() -> Result<(), AppError> {
         let t = start.elapsed().as_secs_f64();
 
         for a in &mut agents {
-            // Flow field (soft curl-like):
             let fx = ((a.pos.1 * 0.05 + t * 0.3).sin() * 0.8) + (t * 0.1 + a.wobble).cos() * 0.2;
             let fy = ((a.pos.0 * 0.05 - t * 0.25).cos() * 0.8) + (t * 0.13).sin() * 0.2;
 
             let mut steer_x = fx;
             let mut steer_y = fy;
 
-            // Mouse field:
+            // Mouse field
             let dx = mouse.x as f64 - a.pos.0;
             let dy = mouse.y as f64 - a.pos.1;
             let d2 = (dx * dx + dy * dy).max(0.0001);
@@ -470,7 +467,6 @@ pub fn main() -> Result<(), AppError> {
     }
     r.explicit_remove_drawable(video_id);
 
-    manager.stop();
     ltrender::restore_terminal()?;
     Ok(())
 }

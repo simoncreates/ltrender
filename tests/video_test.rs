@@ -3,7 +3,7 @@ use common_stdx::{Point, Rect};
 use crossterm::terminal::size;
 use env_logger::Builder;
 use log::info;
-use ltrender::display_screen::{ScreenAreaRect, ScreenPoint};
+use ltrender::display_screen::{AreaPoint, AreaRect};
 use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::{AppError, DrawError};
@@ -81,12 +81,12 @@ fn video_render_test() -> Result<(), AppError> {
 
     let (cols, rows) = size()?;
     info!("screen size: {:?}", (cols, rows));
-    let (manager, mut r) =
+    let (_manager, mut r) =
         RendererManager::new::<DefaultScreenBuffer<TestCellDrawer>>((cols, rows), 600);
     r.set_render_mode(ltrender::renderer::RenderMode::Buffered);
     r.set_update_interval(16);
 
-    let screen = r.create_screen(ScreenAreaRect::FullScreen, 5);
+    let screen = r.create_screen(AreaRect::FullScreen, 5);
     expect_no_data();
 
     let obj_id = if let Ok(sprite) =
@@ -140,9 +140,9 @@ fn video_render_test() -> Result<(), AppError> {
     // changing the screen area, should only create change on the screen, after render frame has been called
     r.change_screen_area(
         screen,
-        ScreenAreaRect::FromPoints(
-            ScreenPoint::Point(Point::from((1, 1))),
-            ScreenPoint::BottomRight,
+        AreaRect::FromPoints(
+            AreaPoint::Point(Point::from((1, 1))),
+            AreaPoint::BottomRight,
         ),
     );
     test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
@@ -156,9 +156,9 @@ fn video_render_test() -> Result<(), AppError> {
     let border_style = BorderStyle::AllRound(border_char);
 
     let rect_screen = r.create_screen(
-        ScreenAreaRect::FromPoints(
-            ScreenPoint::Point(Point::from((0, 0))),
-            ScreenPoint::BottomRight,
+        AreaRect::FromPoints(
+            AreaPoint::Point(Point::from((0, 0))),
+            AreaPoint::BottomRight,
         ),
         0,
     );
