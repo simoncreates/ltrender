@@ -4,8 +4,9 @@ use crossterm::event::{Event, KeyCode, MouseEventKind, poll, read};
 use crossterm::terminal::size;
 use log::info;
 use ltrender::display_screen::AreaRect;
-use ltrender::renderer::render_handle::{RenderHandle, start_renderer_thread};
-use ltrender::renderer::{Buffered, RenderModeBehavior};
+use ltrender::rendering::render_handle::RenderHandle;
+use ltrender::rendering::render_thread::start_renderer_thread;
+use ltrender::rendering::renderer::Buffered;
 use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermCellDrawer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use rand::Rng;
@@ -16,7 +17,7 @@ use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::draw_object_builder::videostream_drawable_builder::make_videostream_drawable;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::AppError;
-use ltrender::{Renderer, ScreenBuffer, init_logger};
+use ltrender::{Renderer, init_logger};
 
 use ltrender::terminal_buffer::buffer_and_celldrawer::shaders::Grayscale;
 use ltrender::terminal_buffer::standard_drawables::sprite_drawable::{
@@ -106,7 +107,7 @@ fn make_agent_obj(layer: usize, col: Color) -> DrawObject {
 }
 
 fn seeded_swarm(
-    r: &mut RenderHandle,
+    r: &mut RenderHandle<Buffered>,
     screen_id: usize,
     n: usize,
     cols: u16,
@@ -149,7 +150,7 @@ fn seeded_swarm(
 
 fn spawn_soft_wave(
     sender: SyncSender<StreamFrame>,
-    ren: RenderHandle,
+    ren: RenderHandle<Buffered>,
     key: DrawObjectKey,
     size: (u16, u16),
     bg_member: TickMember,
@@ -175,7 +176,7 @@ fn spawn_soft_wave(
                 }
             }
             let _ = sender.send(StreamFrame { data, size });
-            ren.render_drawable(key);
+            let _ = ren.render_drawable(key);
             t += 0.04;
             bg_member.wait_for_tick();
         }
@@ -198,7 +199,7 @@ pub fn main() -> Result<(), AppError> {
         (cols, rows),
     );
     let mut r = start_renderer_thread(renderer);
-    r.set_update_interval(16);
+    r.set_update_interval(16)?;
 
     let screen = r.create_screen(AreaRect::FullScreen, 5)?;
 
@@ -210,7 +211,13 @@ pub fn main() -> Result<(), AppError> {
         .shader(Grayscale)
         .add_lifetime(ObjectLifetime::ExplicitRemove)
         .build(&mut r)?;
-    spawn_soft_wave(tx, r.clone(), video_id, (cols, rows), bg_member);
+    spawn_soft_wave(
+        tx,
+        RenderHandle::<Buffered>::clone(&r),
+        video_id,
+        (cols, rows),
+        bg_member,
+    );
 
     // Optional: tiny sprite clock in the corner (if you have a .ascv around, otherwise harmless).
     if let Ok(sprite) = r.register_sprite_from_source("./assets/debugging/test_video.ascv") {
@@ -305,16 +312,16 @@ pub fn main() -> Result<(), AppError> {
                         KeyCode::Char('n') => {
                             // Reseed: drop old agents visually and create new ones.
                             for a in &agents {
-                                r.explicit_remove_drawable(&a.id);
+                                r.explicit_remove_drawable(&a.id)?;
                             }
                             agents = seeded_swarm(&mut r, screen, 140, cols, rows);
                         }
                         KeyCode::Char('h') => {
                             show_hud = !show_hud;
                             if show_hud {
-                                r.render_drawable(hud_id);
+                                r.render_drawable(hud_id)?;
                             } else {
-                                r.explicit_remove_drawable(&hud_id);
+                                r.explicit_remove_drawable(&hud_id)?;
                             }
                         }
                         _ => {}
@@ -352,7 +359,7 @@ pub fn main() -> Result<(), AppError> {
                     _ => {}
                 },
                 Event::Resize(c, rws) => {
-                    r.handle_resize((c, rws));
+                    r.handle_resize((c, rws))?;
                 }
                 _ => {}
             }
@@ -407,11 +414,11 @@ pub fn main() -> Result<(), AppError> {
 
             // Push to renderer
             let pts = triangle_points(a.pos.0, a.pos.1, a.dir, a.size);
-            r.replace_drawable_points(a.id, pts);
-            r.render_drawable(a.id);
+            r.replace_drawable_points(a.id, pts)?;
+            r.render_drawable(a.id)?;
         }
 
-        r.render_drawable(rect_id);
+        r.render_drawable(rect_id)?;
 
         let frame_preperation_duration = render_start.elapsed();
 
@@ -456,18 +463,18 @@ pub fn main() -> Result<(), AppError> {
                 wrapping: true,
                 scroll_y: 0,
             };
-            r.replace_drawable(hud_id, Box::new(hud));
-            r.render_drawable(hud_id);
+            r.replace_drawable(hud_id, Box::new(hud))?;
+            r.render_drawable(hud_id)?;
         }
         main_member.wait_for_tick();
-        r.render_frame();
+        r.render_frame()?;
     }
 
     // cleanup
     for a in &agents {
-        r.explicit_remove_drawable(&a.id);
+        r.explicit_remove_drawable(&a.id)?;
     }
-    r.explicit_remove_drawable(&video_id);
+    r.explicit_remove_drawable(&video_id)?;
 
     ltrender::restore_terminal()?;
     Ok(())

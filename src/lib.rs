@@ -1,5 +1,5 @@
-pub mod renderer;
-pub use renderer::{ObjectId, Renderer, SpriteId};
+pub mod rendering;
+pub use rendering::renderer::{ObjectId, Renderer, SpriteId};
 
 pub mod update_interval_handler;
 pub use update_interval_handler::{UpdateInterval, UpdateIntervalHandler};

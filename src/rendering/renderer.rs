@@ -12,12 +12,12 @@ use common_stdx::{Point, Rect};
 use log::info;
 use std::collections::HashMap;
 
-pub mod render_handle;
-
 pub type SpriteId = usize;
 pub type ObjectId = usize;
 
+#[derive(Debug, Clone, Copy)]
 pub struct Instant;
+#[derive(Debug, Clone, Copy)]
 pub struct Buffered;
 
 pub trait RenderModeBehavior {
@@ -548,14 +548,20 @@ where
 
         Ok(result)
     }
-}
 
-impl<B, Instant> Renderer<B, Instant>
-where
-    B: ScreenBuffer,
-    B::Drawer: CellDrawer,
-{
-    pub fn into_buffered(self) -> Renderer<B, Buffered> {
+    pub fn into_buffered(self) -> Renderer<B, M> {
+        Renderer {
+            screens: self.screens,
+            obj_library: self.obj_library,
+            screen_buffer: self.screen_buffer,
+            sprites: self.sprites,
+            update_interval_expand_amount: self.update_interval_expand_amount,
+            terminal_size: self.terminal_size,
+            _mode: std::marker::PhantomData,
+        }
+    }
+
+    pub fn into_instant(self) -> Renderer<B, M> {
         Renderer {
             screens: self.screens,
             obj_library: self.obj_library,
@@ -574,18 +580,6 @@ where
     B::Drawer: CellDrawer,
     Buffered: RenderModeBehavior,
 {
-    pub fn into_instant(self) -> Renderer<B, Instant> {
-        Renderer {
-            screens: self.screens,
-            obj_library: self.obj_library,
-            screen_buffer: self.screen_buffer,
-            sprites: self.sprites,
-            update_interval_expand_amount: self.update_interval_expand_amount,
-            terminal_size: self.terminal_size,
-            _mode: std::marker::PhantomData,
-        }
-    }
-
     pub fn render_frame(&mut self) -> Result<(), DrawError> {
         Buffered::render_all(self)?;
 

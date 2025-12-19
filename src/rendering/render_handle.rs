@@ -1,16 +1,13 @@
 use std::sync::mpsc;
-use std::thread;
 
 use common_stdx::Point;
 
 use crate::display_screen::AreaRect;
 use crate::error::AppError;
-use crate::renderer::RenderModeBehavior;
-use crate::terminal_buffer::{CellDrawer, Drawable};
-use crate::{DrawObject, DrawObjectKey, Renderer, ScreenBuffer, ScreenKey, SpriteId};
+use crate::rendering::renderer::{Buffered, Instant, RenderModeBehavior};
+use crate::terminal_buffer::Drawable;
+use crate::{DrawObject, DrawObjectKey, ScreenKey, SpriteId};
 
-/// Commands that the renderer thread understands.
-/// Each variant carries a responder (oneshot Sender) to send the result back.
 pub enum RenderCommand {
     CreateScreen {
         rect: AreaRect,
@@ -92,27 +89,31 @@ pub enum RenderCommand {
     SetUpdateInterval {
         amount: usize,
     },
+    IntoInstant,
+
+    IntoBuffered,
+
     Shutdown,
 }
 
-/// A clonable handle for producers to send commands to renderer thread.
-#[derive(Clone)]
-pub struct RenderHandle {
-    tx: mpsc::Sender<RenderCommand>,
+#[derive(Debug, Clone)]
+pub struct RenderHandle<M> {
+    pub tx: mpsc::Sender<RenderCommand>,
+    pub _mode: std::marker::PhantomData<M>,
 }
 
-impl RenderHandle {
-    /// helper to send a command and wait for the response
+impl<M> RenderHandle<M>
+where
+    M: RenderModeBehavior,
+{
     fn send_and_wait<T>(
         &self,
         cmd_builder: impl FnOnce(mpsc::Sender<Result<T, AppError>>) -> RenderCommand,
     ) -> Result<T, AppError> {
         let (resp_tx, resp_rx) = mpsc::channel();
         let cmd = cmd_builder(resp_tx);
-        // send the command to the renderer thread
         self.tx.send(cmd).map_err(|_| AppError::SendError)?;
 
-        // wait for reply
         resp_rx.recv().map_err(|_| AppError::RecvError)?
     }
 
@@ -233,10 +234,6 @@ impl RenderHandle {
         self.send_and_wait(|resp| RenderCommand::GetAmountOfPoints { handle, resp })
     }
 
-    pub fn render_frame(&self) -> Result<(), AppError> {
-        self.send_and_wait(|resp| RenderCommand::RenderFrame { resp })
-    }
-
     pub fn set_update_interval(&self, amount: usize) -> Result<(), AppError> {
         self.send(RenderCommand::SetUpdateInterval { amount })?;
         Ok(())
@@ -266,144 +263,26 @@ impl RenderHandle {
     }
 }
 
-/// spawn a dedicated renderer thread and return a clonable handle
-///
-/// NOTE: Renderer and all its contained types MUST be `Send + 'static`.
-pub fn start_renderer_thread<B, M>(mut renderer: Renderer<B, M>) -> RenderHandle
-where
-    B: ScreenBuffer + Send + 'static,
-    B::Drawer: CellDrawer + Send + 'static,
-    M: RenderModeBehavior + Send + 'static,
-{
-    let (tx, rx) = mpsc::channel::<RenderCommand>();
+impl RenderHandle<Buffered> {
+    pub fn render_frame(&self) -> Result<(), AppError> {
+        self.send_and_wait(|resp| RenderCommand::RenderFrame { resp })
+    }
 
-    // spawn the renderer loop
-    thread::spawn(move || {
-        for cmd in rx {
-            match cmd {
-                RenderCommand::CreateScreen { rect, layer, resp } => {
-                    // create_screen returns ScreenKey (not a Result)
-                    let key = renderer.create_screen(rect, layer);
-                    let _ = resp.send(Ok(key));
-                }
-                RenderCommand::ChangeScreenArea {
-                    screen_id,
-                    new_area,
-                    resp,
-                } => {
-                    let res = renderer
-                        .change_screen_area(screen_id, new_area)
-                        .map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::ChangeScreenLayer {
-                    screen_id,
-                    new_layer,
-                    resp,
-                } => {
-                    let res = renderer
-                        .change_screen_layer(screen_id, new_layer)
-                        .map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::RegisterDrawable {
-                    screen_id,
-                    obj,
-                    resp,
-                } => {
-                    let res = renderer
-                        .register_drawable(screen_id, obj)
-                        .map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::RemoveDrawable { id, resp } => {
-                    let res = renderer.remove_drawable(id).map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::ExplicitRemoveDrawable { id, resp } => {
-                    let res = renderer.explicit_remove_drawable(&id).map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::ReplaceDrawable { id, drawable, resp } => {
-                    let res = renderer.replace_drawable(id, drawable).map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::RegisterSpriteFromSource { path, resp } => {
-                    // note: this returns AppError
-                    let res = renderer.register_sprite_from_source(&path);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::RenderDrawable { key, resp } => {
-                    let res = renderer.render_drawable(key).map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::HandleResize { new_size, resp } => {
-                    let res = renderer.handle_resize(new_size).map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::GetTerminalSize { resp } => {
-                    let size = renderer.get_terminal_size();
-                    let _ = resp.send(Ok(size));
-                }
-                RenderCommand::MoveDrawableTo {
-                    handle,
-                    new_pos,
-                    resp,
-                } => {
-                    let res = renderer
-                        .move_drawable_to(handle, new_pos)
-                        .map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::MoveDrawableBy {
-                    handle,
-                    dx,
-                    dy,
-                    resp,
-                } => {
-                    let res = renderer
-                        .move_drawable_by(handle, dx, dy)
-                        .map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::MoveDrawablePoint {
-                    handle,
-                    point_index,
-                    new_pos,
-                    resp,
-                } => {
-                    let res = renderer
-                        .move_drawable_point(handle, point_index, new_pos)
-                        .map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::GetAmountOfPoints { handle, resp } => {
-                    let res = renderer.get_amount_of_points(handle).map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::RenderFrame { resp } => {
-                    let res = renderer.render_frame().map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::ReplaceDrawablePoints {
-                    handle,
-                    new_points,
-                    resp,
-                } => {
-                    let res = renderer
-                        .replace_drawable_points(handle, new_points)
-                        .map_err(Into::into);
-                    let _ = resp.send(res);
-                }
-                RenderCommand::SetUpdateInterval { amount } => {
-                    renderer.set_update_interval(amount);
-                }
-                RenderCommand::Shutdown => break,
-            }
-        }
+    pub fn into_instant(&self) -> Result<RenderHandle<Instant>, AppError> {
+        self.send(RenderCommand::IntoInstant)?;
+        Ok(RenderHandle {
+            tx: self.tx.clone(),
+            _mode: std::marker::PhantomData,
+        })
+    }
+}
 
-        // thread exits when channel closed or Shutdown received
-    });
-
-    RenderHandle { tx }
+impl RenderHandle<Instant> {
+    pub fn into_buffered(&self) -> Result<RenderHandle<Buffered>, AppError> {
+        self.send(RenderCommand::IntoBuffered)?;
+        Ok(RenderHandle {
+            tx: self.tx.clone(),
+            _mode: std::marker::PhantomData,
+        })
+    }
 }
