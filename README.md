@@ -6,6 +6,8 @@ powerful rendering engine for terminal tools and games.
 ## TODO:
 - documentation
 - more examples
+- allow the screen select handler to be passed into renderer
+
 ## Improve:
 - add more testing
 

@@ -3,15 +3,22 @@ use common_stdx::Rect;
 use crossterm::{event::KeyCode, terminal::size};
 use log::info;
 use ltrender::{
-    DrawObjectBuilder, Renderer, ScreenBuffer, ScreenKey,
+    DrawObjectBuilder, Renderer, ScreenKey,
     display_screen::AreaRect,
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
     input_handler::hook::InputButton,
-    renderer::RenderModeBehavior,
+    rendering::{
+        render_handle::RenderHandle,
+        render_thread::start_renderer_with_input,
+        renderer::{Instant, RenderModeBehavior},
+    },
     restore_terminal,
-    terminal_buffer::buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
+    terminal_buffer::{
+        buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
+        standard_drawables::rect_drawable::ScreenFitType,
+    },
 };
 
 pub struct AdjustableScreens {
@@ -20,21 +27,21 @@ pub struct AdjustableScreens {
 }
 
 impl AdjustableScreens {
-    pub fn new_uniform_grid<B, M>(
+    pub fn new_uniform_grid<M>(
         amount_screens_x: usize,
         amount_screens_y: usize,
-        r: &mut Renderer<B, M>,
-    ) -> Self
+        r: &mut RenderHandle<M>,
+    ) -> Result<Self, AppError>
     where
-        B: ScreenBuffer,
         M: RenderModeBehavior,
     {
         let mut screens = Vec::new();
         for _ in 0..amount_screens_y {
             let mut screen_row = Vec::new();
             for _ in 0..amount_screens_x {
-                screen_row
-                    .push(r.create_screen(AreaRect::FromPoints((0, 0).into(), (0, 0).into()), 0));
+                let screen =
+                    r.create_screen(AreaRect::FromPoints((0, 0).into(), (0, 0).into()), 0)?;
+                screen_row.push(screen);
             }
             screens.push(screen_row);
         }
@@ -42,15 +49,14 @@ impl AdjustableScreens {
             screens,
             current: 0,
         };
-        ad_screens.place_screens_uniformly(r);
-        ad_screens
+        ad_screens.place_screens_uniformly(r)?;
+        Ok(ad_screens)
     }
-    pub fn place_screens_uniformly<B, M>(&self, r: &mut Renderer<B, M>)
+    pub fn place_screens_uniformly<M>(&self, r: &mut RenderHandle<M>) -> Result<(), AppError>
     where
-        B: ScreenBuffer,
         M: RenderModeBehavior,
     {
-        let current_size = r.get_terminal_size();
+        let current_size = r.get_terminal_size()?;
         let screens_each_height = current_size.1 as usize / self.screens.len();
         for (i, screen_row) in &mut self.screens.iter().enumerate() {
             let screens_each_width = current_size.0 as usize / screen_row.len();
@@ -65,9 +71,10 @@ impl AdjustableScreens {
                         )
                             .into(),
                     ),
-                );
+                )?;
             }
         }
+        Ok(())
     }
 }
 
@@ -99,15 +106,15 @@ pub fn main() -> Result<(), AppError> {
     init_logger("./screens_showcase.log")?;
 
     let (cols, rows) = size()?;
-    let (_manager, mut r, ev_handler) = RendererManager::new_with_ev_handler::<
-        DefaultScreenBuffer<CrosstermCellDrawer>,
-    >((cols, rows), 100);
-    r.set_update_interval(1);
-    r.set_render_mode(RenderMode::Instant);
+    let renderer = Renderer::<DefaultScreenBuffer<CrosstermCellDrawer>, Instant>::create_renderer(
+        (cols, rows),
+    );
+    let (mut r, ev_handler, _ev_manager, _screen_sel) = start_renderer_with_input(renderer);
+    r.set_update_interval(1)?;
 
     let hook = ev_handler.create_hook();
 
-    let mut ad_screens = AdjustableScreens::new_uniform_grid(WIDTH, HEIGHT, &mut r);
+    let mut ad_screens = AdjustableScreens::new_uniform_grid(WIDTH, HEIGHT, &mut r)?;
     let mut builder = DrawObjectBuilder::default();
 
     for screen in &mut ad_screens {
@@ -125,12 +132,13 @@ pub fn main() -> Result<(), AppError> {
             .border_thickness(1)
             .fill_style(' ')
             .rect(Rect::from_coords(0, 0, 2, 2))
+            .screen_fit(ScreenFitType::Full)
             })?
             .add_lifetime(ObjectLifetime::ExplicitRemove)
             .screen(screen)
             .build(&mut r)?;
         info!("manually rendering drawable: {:?}", d_key);
-        r.render_drawable(d_key);
+        r.render_drawable(d_key)?;
     }
     loop {
         if hook.is_pressed(InputButton::Key(KeyCode::Char('c'))) {
@@ -139,14 +147,14 @@ pub fn main() -> Result<(), AppError> {
         }
 
         let cur_size = size()?;
-        let rendered_size = r.get_terminal_size();
+        let rendered_size = r.get_terminal_size()?;
         if cur_size != rendered_size {
             info!(
                 "redrawing with cur_size: {:?}, rendered: {:?}",
                 cur_size, rendered_size
             );
-            r.handle_resize(cur_size);
-            ad_screens.place_screens_uniformly(&mut r);
+            r.handle_resize(cur_size)?;
+            ad_screens.place_screens_uniformly(&mut r)?;
         }
     }
     restore_terminal()?;
