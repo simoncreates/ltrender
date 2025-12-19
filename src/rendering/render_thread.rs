@@ -1,7 +1,10 @@
-use std::{sync::mpsc, thread};
+use std::{sync::mpsc, thread, time::Duration};
 
+#[cfg(feature = "screen_select_subscription")]
+use crate::{CrosstermEventManager, input_handler::screen_select_handler::ScreenSelectHandler};
 use crate::{
     Renderer, ScreenBuffer,
+    input_handler::manager::EventHandler,
     rendering::{
         render_handle::{RenderCommand, RenderHandle},
         renderer::RenderModeBehavior,
@@ -9,7 +12,7 @@ use crate::{
     terminal_buffer::CellDrawer,
 };
 
-pub fn start_renderer_thread<B, M>(mut renderer: Renderer<B, M>) -> RenderHandle<M>
+fn start_thread<B, M>(mut renderer: Renderer<B, M>) -> RenderHandle<M>
 where
     B: ScreenBuffer + Send + 'static,
     B::Drawer: CellDrawer + Send + 'static,
@@ -19,7 +22,12 @@ where
 
     // spawn the renderer loop
     thread::spawn(move || {
+        let mut current_time = std::time::Instant::now();
         for cmd in rx {
+            if current_time.elapsed() >= Duration::from_millis(2) {
+                current_time = std::time::Instant::now();
+                let _ = renderer.remove_all_framebased_objects();
+            }
             match cmd {
                 RenderCommand::CreateScreen { rect, layer, resp } => {
                     // create_screen returns ScreenKey (not a Result)
@@ -153,4 +161,38 @@ where
         tx,
         _mode: std::marker::PhantomData,
     }
+}
+
+pub fn start_renderer<B, M>(renderer: Renderer<B, M>) -> RenderHandle<M>
+where
+    B: ScreenBuffer + Send + 'static,
+    B::Drawer: CellDrawer + Send + 'static,
+    M: RenderModeBehavior + Send + 'static,
+{
+    start_thread(renderer)
+}
+#[cfg(feature = "screen_select_subscription")]
+pub fn start_renderer_with_input<B, M>(
+    renderer: Renderer<B, M>,
+) -> (
+    RenderHandle<M>,
+    EventHandler,
+    CrosstermEventManager,
+    ScreenSelectHandler,
+)
+where
+    B: ScreenBuffer + Send + 'static,
+    B::Drawer: CellDrawer + Send + 'static,
+    M: RenderModeBehavior + Send + 'static,
+{
+    use crate::{CrosstermEventManager, input_handler::manager::TargetScreen};
+
+    let (event_mngr, event_handler, screen_sel_handler) =
+        CrosstermEventManager::new_with_select_sub(TargetScreen::None);
+    (
+        start_thread(renderer),
+        event_handler,
+        event_mngr,
+        screen_sel_handler,
+    )
 }

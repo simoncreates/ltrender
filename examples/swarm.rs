@@ -5,7 +5,7 @@ use crossterm::terminal::size;
 use log::info;
 use ltrender::display_screen::AreaRect;
 use ltrender::rendering::render_handle::RenderHandle;
-use ltrender::rendering::render_thread::start_renderer_thread;
+use ltrender::rendering::render_thread::start_renderer;
 use ltrender::rendering::renderer::Buffered;
 use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermCellDrawer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
@@ -198,7 +198,7 @@ pub fn main() -> Result<(), AppError> {
     let renderer = Renderer::<DefaultScreenBuffer<CrosstermCellDrawer>, Buffered>::create_renderer(
         (cols, rows),
     );
-    let mut r = start_renderer_thread(renderer);
+    let mut r = start_renderer(renderer);
     r.set_update_interval(16)?;
 
     let screen = r.create_screen(AreaRect::FullScreen, 5)?;

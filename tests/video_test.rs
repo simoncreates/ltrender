@@ -7,7 +7,7 @@ use ltrender::display_screen::{AreaPoint, AreaRect};
 use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::{AppError, DrawError};
-use ltrender::rendering::render_thread::start_renderer_thread;
+use ltrender::rendering::render_thread::start_renderer;
 use ltrender::rendering::renderer::Buffered;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::TestCellDrawer;
@@ -84,7 +84,7 @@ fn video_render_test() -> Result<(), AppError> {
     info!("screen size: {:?}", (cols, rows));
     let renderer =
         Renderer::<DefaultScreenBuffer<TestCellDrawer>, Buffered>::create_renderer((cols, rows));
-    let mut r = start_renderer_thread(renderer);
+    let mut r = start_renderer(renderer);
 
     r.set_update_interval(16)?;
 
