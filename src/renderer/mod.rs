@@ -10,20 +10,83 @@ use crate::{
 use ascii_assets::AsciiVideo;
 use common_stdx::{Point, Rect};
 use log::info;
-use std::collections::HashMap; // bring the trait into scope
-
-use std::time::Instant;
-pub mod render_handle;
-pub use render_handle::RendererHandle;
+use std::collections::HashMap;
 
 pub type SpriteId = usize;
 pub type ObjectId = usize;
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RenderMode {
-    Instant,
-    Buffered,
+
+pub struct Instant;
+pub struct Buffered;
+
+pub trait RenderModeBehavior {
+    fn after_update<B: ScreenBuffer>(
+        renderer: &mut Renderer<B, Self>,
+        object_key: DrawObjectKey,
+    ) -> Result<(), DrawError>
+    where
+        Self: Sized;
+
+    fn refresh<B: ScreenBuffer>(renderer: &mut Renderer<B, Self>) -> Result<(), DrawError>
+    where
+        Self: Sized;
+
+    fn render_all<B: ScreenBuffer>(renderer: &mut Renderer<B, Self>) -> Result<(), DrawError>
+    where
+        Self: Sized;
 }
-pub struct Renderer<B>
+
+impl RenderModeBehavior for Instant {
+    fn after_update<B: ScreenBuffer>(
+        renderer: &mut Renderer<B, Self>,
+        object_key: DrawObjectKey,
+    ) -> Result<(), DrawError> {
+        renderer.render_drawable(object_key)
+    }
+    fn refresh<B: ScreenBuffer>(renderer: &mut Renderer<B, Self>) -> Result<(), DrawError> {
+        renderer.forced_refresh()?;
+        Ok(())
+    }
+
+    /// Render all objects on all screens.
+    fn render_all<B: ScreenBuffer>(renderer: &mut Renderer<B, Self>) -> Result<(), DrawError> {
+        for screen in renderer.screens.values_mut() {
+            screen.render_all(
+                &mut renderer.screen_buffer,
+                &mut renderer.obj_library,
+                &renderer.sprites,
+            )?;
+        }
+        Self::refresh(renderer)?;
+        Ok(())
+    }
+}
+
+impl RenderModeBehavior for Buffered {
+    fn after_update<B: ScreenBuffer>(
+        _renderer: &mut Renderer<B, Self>,
+        _object_key: DrawObjectKey,
+    ) -> Result<(), DrawError> {
+        Ok(())
+    }
+    // noop, since buffered rendering does not need to refresh
+    fn refresh<B: ScreenBuffer>(_renderer: &mut Renderer<B, Self>) -> Result<(), DrawError> {
+        Ok(())
+    }
+    // might change up the impl here
+    fn render_all<B: ScreenBuffer>(renderer: &mut Renderer<B, Self>) -> Result<(), DrawError> {
+        for screen in renderer.screens.values_mut() {
+            screen.render_all(
+                &mut renderer.screen_buffer,
+                &mut renderer.obj_library,
+                &renderer.sprites,
+            )?;
+        }
+        renderer.forced_refresh()?;
+        Ok(())
+    }
+}
+
+pub struct Renderer<B, M>
 where
     B: ScreenBuffer,
     B::Drawer: CellDrawer,
@@ -32,35 +95,36 @@ where
     obj_library: DrawObjectLibrary,
     screen_buffer: B,
     sprites: SpriteRegistry,
-    pub render_mode: RenderMode,
     update_interval_expand_amount: usize,
     terminal_size: (u16, u16),
+    _mode: std::marker::PhantomData<M>,
 }
 
-impl<B> Renderer<B>
+impl<B, M> Renderer<B, M>
 where
     B: ScreenBuffer,
     B::Drawer: CellDrawer,
+    M: RenderModeBehavior,
 {
-    pub fn set_render_mode(&mut self, mode: RenderMode) {
-        self.render_mode = mode;
+    /// set how aggrisive draw batches should try to merge
+    pub fn set_update_interval(&mut self, amount: usize) {
+        self.update_interval_expand_amount = amount;
     }
 
-    /// set how aggrisive draw batches should try to merge
-    pub fn set_update_interval_expand_amount(&mut self, amount: usize) {
-        self.update_interval_expand_amount = amount;
+    pub fn get_terminal_size(&self) -> (u16, u16) {
+        self.terminal_size
     }
 
     /// Create a new renderer with an initial terminal size.
     pub fn create_renderer(size: (u16, u16)) -> Self {
-        Renderer::<B> {
+        Renderer::<B, M> {
             obj_library: DrawObjectLibrary::new(),
             screens: HashMap::new(),
             screen_buffer: B::new(size),
             sprites: SpriteRegistry::new(),
-            render_mode: RenderMode::Buffered,
             update_interval_expand_amount: 50000,
             terminal_size: size,
+            _mode: std::marker::PhantomData,
         }
     }
 
@@ -104,7 +168,7 @@ where
                     &self.sprites,
                 )?;
             }
-            self.refresh(false)?;
+            M::refresh(self)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
@@ -128,7 +192,7 @@ where
                 &mut self.obj_library,
                 &self.sprites,
             )?;
-            self.refresh(false)?;
+            M::refresh(self)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
@@ -152,7 +216,7 @@ where
                 },
                 area,
             )?;
-            self.refresh(false)?;
+            M::refresh(self)?;
             Ok(DrawObjectKey {
                 screen_id,
                 object_id: new_obj_id,
@@ -170,7 +234,7 @@ where
                 &mut self.obj_library,
                 &self.sprites,
             )?;
-            self.refresh(false)?;
+            M::refresh(self)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(id.screen_id))
@@ -224,7 +288,7 @@ where
     /// checks if any of the currently existing drawobjects should be removed,
     /// because its duration on screen has ended
     pub fn check_if_object_lifetime_ended(&mut self) -> Result<(), DrawError> {
-        let now = Instant::now();
+        let now = std::time::Instant::now();
         let mut expired_keys = Vec::new();
 
         for (screen_id, screen) in &self.screens {
@@ -237,31 +301,6 @@ where
                 if let Some(obj) = self.obj_library.all_objects.get(key)
                     && let ObjectLifetime::ForTime(dur) = obj.lifetime
                     && now >= obj.creation_time + dur
-                {
-                    expired_keys.push(*key);
-                }
-            }
-        }
-
-        for key in expired_keys {
-            self.explicit_remove_drawable(&key)?;
-        }
-
-        Ok(())
-    }
-
-    /// removes all the objects from screen, that have frame-based removal
-    pub fn remove_all_framebased_objects(&mut self) -> Result<(), DrawError> {
-        let mut expired_keys = Vec::new();
-
-        for (screen_id, screen) in &self.screens {
-            for obj_id in &screen.draw_objects {
-                let key = &DrawObjectKey {
-                    screen_id: *screen_id,
-                    object_id: *obj_id,
-                };
-                if let Some(obj) = self.obj_library.all_objects.get(key)
-                    && let ObjectLifetime::RemoveNextFrame = obj.lifetime
                 {
                     expired_keys.push(*key);
                 }
@@ -288,28 +327,20 @@ where
     pub fn render_drawable(&mut self, object_key: DrawObjectKey) -> Result<(), DrawError> {
         if let Some(s) = self.screens.get_mut(&object_key.screen_id) {
             if let Some(obj) = self.obj_library.get_mut(&object_key) {
-                obj.creation_time = Instant::now()
+                obj.creation_time = std::time::Instant::now()
             }
-            let area = s.rect();
 
             s.register_drawable(object_key.object_id, &self.obj_library);
 
-            self.refresh(false)?;
+            M::refresh(self)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(object_key.screen_id))
         }
     }
-    /// Render all objects on all screens.
-    fn render_all(&mut self, forced: bool) -> Result<(), DrawError> {
-        for screen in self.screens.values_mut() {
-            screen.render_all(
-                &mut self.screen_buffer,
-                &mut self.obj_library,
-                &self.sprites,
-            )?;
-        }
-        self.refresh(forced)?;
+
+    fn forced_refresh(&mut self) -> Result<(), DrawError> {
+        B::update_terminal(&mut self.screen_buffer, self.update_interval_expand_amount)?;
         Ok(())
     }
 
@@ -320,22 +351,7 @@ where
             screen.terminal_size = self.terminal_size
         }
         B::mark_all_dirty(&mut self.screen_buffer, new_size);
-        self.render_all(false)?;
-        Ok(())
-    }
-
-    /// Flush the buffer to the terminal.
-    pub fn refresh(&mut self, forced: bool) -> Result<(), DrawError> {
-        if RenderMode::Instant == self.render_mode || forced {
-            B::update_terminal(&mut self.screen_buffer, self.update_interval_expand_amount)?;
-        }
-        Ok(())
-    }
-
-    pub fn render_frame(&mut self) -> Result<(), DrawError> {
-        self.render_all(true)?;
-
-        self.remove_all_framebased_objects()?;
+        M::render_all(self)?;
         Ok(())
     }
 
@@ -346,50 +362,6 @@ where
             id = id.saturating_add(1);
         }
         id
-    }
-
-    //fn get_drawable<F, R>(&self, object_key: DrawObjectKey, mut get_fn: F) -> Result<R, DrawError>
-    //where
-    //    F: FnMut(&dyn Drawable) -> Result<R, DrawError>,
-    //{
-    //    if let Some(obj) = self.obj_library.find_drawable(&object_key) {
-    //        get_fn(&*obj.drawable)
-    //    } else {
-    //        Err(DrawError::DrawableHandleNotFound {
-    //            screen_id: object_key.screen_id,
-    //            obj_id: object_key.object_id,
-    //        })
-    //    }
-    //}
-
-    /// general update function
-    /// todo: potential issues with frame based rendering
-    /// does the drawable just dissapear on screen after having been accesed using this function
-    fn get_drawable_mut<F, R>(
-        &mut self,
-        object_key: DrawObjectKey,
-        mut update_fn: F,
-    ) -> Result<R, DrawError>
-    where
-        F: FnMut(&mut dyn Drawable) -> R,
-    {
-        self.remove_drawable(object_key)?;
-        let result = {
-            let obj =
-                self.obj_library
-                    .get_mut(&object_key)
-                    .ok_or(DrawError::DrawableHandleNotFound {
-                        screen_id: object_key.screen_id,
-                        obj_id: object_key.object_id,
-                    })?;
-            update_fn(&mut *obj.drawable)
-        };
-
-        if self.render_mode == RenderMode::Instant {
-            self.render_drawable(object_key)?;
-        }
-
-        Ok(result)
     }
 
     pub fn move_drawable_to(
@@ -545,5 +517,102 @@ where
                 None
             }
         })
+    }
+
+    fn get_drawable_mut<F, R>(
+        &mut self,
+        object_key: DrawObjectKey,
+        mut update_fn: F,
+    ) -> Result<R, DrawError>
+    where
+        F: FnMut(&mut dyn Drawable) -> R,
+        M: RenderModeBehavior,
+    {
+        self.remove_drawable(object_key)?;
+
+        let result = {
+            let obj =
+                self.obj_library
+                    .get_mut(&object_key)
+                    .ok_or(DrawError::DrawableHandleNotFound {
+                        screen_id: object_key.screen_id,
+                        obj_id: object_key.object_id,
+                    })?;
+
+            update_fn(&mut *obj.drawable)
+        };
+
+        M::after_update(self, object_key)?;
+
+        Ok(result)
+    }
+}
+
+impl<B, Instant> Renderer<B, Instant>
+where
+    B: ScreenBuffer,
+    B::Drawer: CellDrawer,
+{
+    pub fn into_buffered(self) -> Renderer<B, Buffered> {
+        Renderer {
+            screens: self.screens,
+            obj_library: self.obj_library,
+            screen_buffer: self.screen_buffer,
+            sprites: self.sprites,
+            update_interval_expand_amount: self.update_interval_expand_amount,
+            terminal_size: self.terminal_size,
+            _mode: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<B, Buffered> Renderer<B, Buffered>
+where
+    B: ScreenBuffer,
+    B::Drawer: CellDrawer,
+    Buffered: RenderModeBehavior,
+{
+    pub fn into_instant(self) -> Renderer<B, Instant> {
+        Renderer {
+            screens: self.screens,
+            obj_library: self.obj_library,
+            screen_buffer: self.screen_buffer,
+            sprites: self.sprites,
+            update_interval_expand_amount: self.update_interval_expand_amount,
+            terminal_size: self.terminal_size,
+            _mode: std::marker::PhantomData,
+        }
+    }
+
+    pub fn render_frame(&mut self) -> Result<(), DrawError> {
+        Buffered::render_all(self)?;
+
+        self.remove_all_framebased_objects()?;
+        Ok(())
+    }
+
+    /// removes all the objects from screen, that have frame-based removal
+    pub fn remove_all_framebased_objects(&mut self) -> Result<(), DrawError> {
+        let mut expired_keys = Vec::new();
+
+        for (screen_id, screen) in &self.screens {
+            for obj_id in &screen.draw_objects {
+                let key = &DrawObjectKey {
+                    screen_id: *screen_id,
+                    object_id: *obj_id,
+                };
+                if let Some(obj) = self.obj_library.all_objects.get(key)
+                    && let ObjectLifetime::RemoveNextFrame = obj.lifetime
+                {
+                    expired_keys.push(*key);
+                }
+            }
+        }
+
+        for key in expired_keys {
+            self.explicit_remove_drawable(&key)?;
+        }
+
+        Ok(())
     }
 }

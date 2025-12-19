@@ -3,13 +3,13 @@ use common_stdx::Rect;
 use crossterm::{event::KeyCode, terminal::size};
 use log::info;
 use ltrender::{
-    DrawObjectBuilder, ScreenKey,
+    DrawObjectBuilder, Renderer, ScreenBuffer, ScreenKey,
     display_screen::AreaRect,
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
     input_handler::hook::InputButton,
-    renderer::{RenderMode, RendererHandle, render_handle::RendererManager},
+    renderer::RenderModeBehavior,
     restore_terminal,
     terminal_buffer::buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
 };
@@ -20,11 +20,15 @@ pub struct AdjustableScreens {
 }
 
 impl AdjustableScreens {
-    pub fn new_uniform_grid(
+    pub fn new_uniform_grid<B, M>(
         amount_screens_x: usize,
         amount_screens_y: usize,
-        r: &mut RendererHandle,
-    ) -> Self {
+        r: &mut Renderer<B, M>,
+    ) -> Self
+    where
+        B: ScreenBuffer,
+        M: RenderModeBehavior,
+    {
         let mut screens = Vec::new();
         for _ in 0..amount_screens_y {
             let mut screen_row = Vec::new();
@@ -41,7 +45,11 @@ impl AdjustableScreens {
         ad_screens.place_screens_uniformly(r);
         ad_screens
     }
-    pub fn place_screens_uniformly(&self, r: &mut RendererHandle) {
+    pub fn place_screens_uniformly<B, M>(&self, r: &mut Renderer<B, M>)
+    where
+        B: ScreenBuffer,
+        M: RenderModeBehavior,
+    {
         let current_size = r.get_terminal_size();
         let screens_each_height = current_size.1 as usize / self.screens.len();
         for (i, screen_row) in &mut self.screens.iter().enumerate() {

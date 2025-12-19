@@ -76,6 +76,7 @@ impl Screen {
         });
         if let Some(obj) = opt_obj {
             let rect = &self.area.area_to_rect(&self.terminal_size);
+            println!("screen layer: {}, key: {}", self.layer, self.id);
             screen_buffer.add_to_buffer(obj, object_id, self.layer, rect, sprites)?;
         } else {
             return Err(DrawError::DrawableHandleNotFound {

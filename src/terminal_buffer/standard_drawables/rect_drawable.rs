@@ -20,12 +20,19 @@ pub enum BorderStyle {
     },
     Basic,
 }
-
-enum BorderStyleCustomFields {
+#[derive(Clone, Debug)]
+pub enum BorderStyleCustomFields {
     Top,
     Bottom,
     Left,
     Right,
+}
+#[derive(Clone, Debug)]
+pub enum ScreenFitType {
+    // the rect always fills out the whole screen
+    Full,
+    // only certain sides of the rect will be fitted to the scree
+    Partial(Vec<BorderStyleCustomFields>),
 }
 
 #[derive(Clone, Debug)]
@@ -34,6 +41,7 @@ pub struct RectDrawable {
     pub border_thickness: usize,
     pub border_style: BorderStyle,
     pub fill_style: Option<TerminalChar>,
+    pub screen_fit: Option<ScreenFitType>,
 }
 
 impl DoublePointed for RectDrawable {
@@ -201,6 +209,30 @@ impl Drawable for RectDrawable {
 
 impl ScreenFitting for RectDrawable {
     fn fit_to_screen(&mut self, rect: Rect<i32>) {
-        self.rect = rect;
+        if let Some(fit) = &self.screen_fit {
+            match fit {
+                ScreenFitType::Full => {
+                    self.rect = rect;
+                }
+                ScreenFitType::Partial(fits) => {
+                    for border_fit in fits {
+                        match border_fit {
+                            BorderStyleCustomFields::Top => {
+                                self.rect.p1.y = rect.p1.y;
+                            }
+                            BorderStyleCustomFields::Bottom => {
+                                self.rect.p2.y = rect.p2.y;
+                            }
+                            BorderStyleCustomFields::Left => {
+                                self.rect.p1.x = rect.p1.x;
+                            }
+                            BorderStyleCustomFields::Right => {
+                                self.rect.p2.x = rect.p2.x;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

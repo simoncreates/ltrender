@@ -3,7 +3,13 @@ use common_stdx::Rect;
 
 use crate::{
     error::DrawObjectBuilderError,
-    terminal_buffer::{standard_drawables::{rect_drawable::BorderStyle, RectDrawable}, Drawable},
+    terminal_buffer::{
+        Drawable,
+        standard_drawables::{
+            RectDrawable,
+            rect_drawable::{BorderStyle, ScreenFitType},
+        },
+    },
 };
 
 use crate::handle_char_field;
@@ -14,6 +20,7 @@ pub struct RectDrawableBuilder {
     border_thickness: Option<usize>,
     border_style: Option<BorderStyle>,
     fill_style: Option<TerminalChar>,
+    screen_fit: Option<ScreenFitType>,
 }
 
 impl RectDrawableBuilder {
@@ -36,6 +43,11 @@ impl RectDrawableBuilder {
         self
     }
 
+    pub fn screen_fit(mut self, fit_type: ScreenFitType) -> Self {
+        self.screen_fit = Some(fit_type);
+        self
+    }
+
     handle_char_field!(fill_style, fill_style);
 
     pub fn build(self) -> Result<Box<dyn Drawable>, DrawObjectBuilderError> {
@@ -43,13 +55,10 @@ impl RectDrawableBuilder {
             rect: self
                 .rect
                 .ok_or(DrawObjectBuilderError::FailedToBuildRectObject())?,
-            border_thickness: self
-                .border_thickness
-                .ok_or(DrawObjectBuilderError::FailedToBuildRectObject())?,
-            border_style: self
-                .border_style
-                .ok_or(DrawObjectBuilderError::FailedToBuildRectObject())?,
+            border_thickness: self.border_thickness.unwrap_or(0),
+            border_style: self.border_style.unwrap_or(BorderStyle::Basic),
             fill_style: self.fill_style,
+            screen_fit: self.screen_fit,
         }))
     }
 }

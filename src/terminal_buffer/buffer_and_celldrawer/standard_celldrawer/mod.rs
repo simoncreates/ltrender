@@ -1,4 +1,4 @@
-pub mod crossterm_buffer;
-pub use crossterm_buffer::CrosstermCellDrawer;
-pub mod test_buffer;
-pub use test_buffer::TestCellDrawer;
+pub mod crossterm_celldrawer;
+pub use crossterm_celldrawer::CrosstermCellDrawer;
+pub mod test_celldrawer;
+pub use test_celldrawer::TestCellDrawer;

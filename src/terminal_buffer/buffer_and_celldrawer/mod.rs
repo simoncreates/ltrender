@@ -14,4 +14,6 @@ pub mod screen_buffer_core;
 pub use screen_buffer_core::ScreenBufferCore;
 
 pub mod standard_celldrawer;
-pub use standard_celldrawer::{crossterm_buffer::CrosstermCellDrawer, test_buffer::TestCellDrawer};
+pub use standard_celldrawer::{
+    crossterm_celldrawer::CrosstermCellDrawer, test_celldrawer::TestCellDrawer,
+};

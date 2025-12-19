@@ -34,7 +34,7 @@ use std::sync::Mutex;
 
 use crate::{
     error::AppError,
-    terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_buffer::TerminalContentInformation,
+    terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_celldrawer::TerminalContentInformation,
 };
 
 static TEST_DATA: Lazy<Mutex<Option<TerminalContentInformation>>> = Lazy::new(|| Mutex::new(None));

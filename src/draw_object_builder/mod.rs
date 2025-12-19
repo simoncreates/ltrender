@@ -1,10 +1,10 @@
 use std::time::Instant;
 
 use crate::{
-    DrawObject, DrawObjectKey, ScreenKey,
+    DrawObject, DrawObjectKey, Renderer, ScreenBuffer, ScreenKey,
     drawable_register::ObjectLifetime,
     error::{AppError, DrawObjectBuilderError},
-    renderer::RendererHandle,
+    renderer::RenderModeBehavior,
     terminal_buffer::{Drawable, buffer_and_celldrawer::Shader},
 };
 pub mod sprite_drawable_builder;
@@ -99,7 +99,10 @@ impl DrawObjectBuilder {
     allow_drawable_building!(RectDrawableBuilder, rect_drawable);
     allow_drawable_building!(VideoStreamDrawableBuilder, videostream_drawable);
 
-    pub fn build(&mut self, render_handle: &mut RendererHandle) -> Result<DrawObjectKey, AppError> {
+    pub fn build<B: ScreenBuffer, M: RenderModeBehavior>(
+        &mut self,
+        renderer: &mut Renderer<B, M>,
+    ) -> Result<DrawObjectKey, AppError> {
         let layer = self.layer.ok_or(DrawObjectBuilderError::NoLayerAdded())?;
         let screen_id = self
             .screen_id
@@ -112,7 +115,7 @@ impl DrawObjectBuilder {
 
         let lifetime = self.lt.ok_or(DrawObjectBuilderError::NoLifetimeAdded())?;
 
-        render_handle
+        renderer
             .register_drawable(
                 screen_id,
                 DrawObject {

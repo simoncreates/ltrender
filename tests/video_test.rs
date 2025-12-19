@@ -7,19 +7,19 @@ use ltrender::display_screen::{AreaPoint, AreaRect};
 use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::{AppError, DrawError};
-use ltrender::renderer::render_handle::RendererManager;
+use ltrender::renderer::Buffered;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::TestCellDrawer;
-use ltrender::terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_buffer::TerminalContentInformation;
+use ltrender::terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_celldrawer::TerminalContentInformation;
 use ltrender::terminal_buffer::standard_drawables::rect_drawable::BorderStyle;
 use ltrender::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
 };
-use ltrender::{DrawObjectBuilder, get_test_data};
+use ltrender::{DrawObjectBuilder, Renderer, get_test_data};
 
 use std::fs::File;
 use std::io::Write;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{panic, thread};
 
 fn create_first_frame() -> Vec<TerminalChar> {
@@ -81,37 +81,36 @@ fn video_render_test() -> Result<(), AppError> {
 
     let (cols, rows) = size()?;
     info!("screen size: {:?}", (cols, rows));
-    let (_manager, mut r) =
-        RendererManager::new::<DefaultScreenBuffer<TestCellDrawer>>((cols, rows), 600);
-    r.set_render_mode(ltrender::renderer::RenderMode::Buffered);
+    let mut r =
+        Renderer::<DefaultScreenBuffer<TestCellDrawer>, Buffered>::create_renderer((cols, rows));
+
     r.set_update_interval(16);
 
     let screen = r.create_screen(AreaRect::FullScreen, 5);
     expect_no_data();
 
-    let obj_id = if let Ok(sprite) =
-        r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())
-    {
-        let spr_draw = SpriteDrawableBuilder::default()
-            .sprite_id(sprite)
-            .position((0, 0))
-            .animation_type(AnimationInfo::Video {
-                loop_type: VideoLoopType::KillOnFinish,
-                speed: VideoSpeed::MillisecondsPerFrame(u16::MAX),
-                start_frame: FrameIdent::FirstFrame,
-                end_frame: FrameIdent::LastFrame,
-            })
-            .build()?;
+    let obj_id =
+        if let Ok(sprite) = r.register_sprite_from_source("./assets/debugging/test_video.ascv") {
+            let spr_draw = SpriteDrawableBuilder::default()
+                .sprite_id(sprite)
+                .position((0, 0))
+                .animation_type(AnimationInfo::Video {
+                    loop_type: VideoLoopType::KillOnFinish,
+                    speed: VideoSpeed::MillisecondsPerFrame(u16::MAX),
+                    start_frame: FrameIdent::FirstFrame,
+                    end_frame: FrameIdent::LastFrame,
+                })
+                .build()?;
 
-        DrawObjectBuilder::default()
-            .layer(2)
-            .screen(screen)
-            .drawable(spr_draw)
-            .add_lifetime(ObjectLifetime::ExplicitRemove)
-            .build(&mut r)?
-    } else {
-        panic!("failed to register sprite from source")
-    };
+            DrawObjectBuilder::default()
+                .layer(2)
+                .screen(screen)
+                .drawable(spr_draw)
+                .add_lifetime(ObjectLifetime::ExplicitRemove)
+                .build(&mut r)?
+        } else {
+            panic!("failed to register sprite from source")
+        };
 
     expect_no_data();
 
@@ -121,20 +120,20 @@ fn video_render_test() -> Result<(), AppError> {
     expect_no_data();
 
     // rendering and expecting to see the video
-    r.render_frame();
+    r.render_frame()?;
     test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
 
     // video should be removed, only after render frame has been called
-    r.explicit_remove_drawable(obj_id);
+    r.explicit_remove_drawable(&obj_id)?;
     test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
-    r.render_frame();
+    r.render_frame()?;
 
     // expecting video to be removed
     test_if_eq_at_pos(Point::from((0, 0)), None);
 
     // rendering again
-    r.render_drawable(obj_id);
-    r.render_frame();
+    r.render_drawable(obj_id)?;
+    r.render_frame()?;
     test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
 
     // changing the screen area, should only create change on the screen, after render frame has been called
@@ -144,10 +143,10 @@ fn video_render_test() -> Result<(), AppError> {
             AreaPoint::Point(Point::from((1, 1))),
             AreaPoint::BottomRight,
         ),
-    );
+    )?;
     test_if_video_exist(Point { x: 0, y: 0 }, ref_frame.clone(), sprite_size);
     // video should now be at 1,1
-    r.render_frame();
+    r.render_frame()?;
     test_if_video_exist(Point { x: 1, y: 1 }, ref_frame.clone(), sprite_size);
 
     //now adding a rect on a screen below the video, then moving it above
@@ -177,13 +176,18 @@ fn video_render_test() -> Result<(), AppError> {
 
     // now the video should still be visible at 1,1
     test_if_video_exist(Point { x: 1, y: 1 }, ref_frame.clone(), sprite_size);
-    r.render_frame();
+    r.render_frame()?;
     // and now still
     test_if_video_exist(Point { x: 1, y: 1 }, ref_frame.clone(), sprite_size);
+    // rect should be visible at 0,0
+    test_if_eq_at_pos(Point { x: 0, y: 0 }, Some(border_char));
+    test_if_eq_at_pos(Point { x: 0, y: 1 }, Some(border_char));
+    test_if_eq_at_pos(Point { x: 1, y: 0 }, Some(border_char));
+    test_if_eq_at_pos(Point { x: 0, y: 2 }, None);
 
     // changing the layer, now the rect should be above
-    r.change_screen_layer(rect_screen, 10);
-    r.render_frame();
+    r.change_screen_layer(rect_screen, 10)?;
+    r.render_frame()?;
     test_if_eq_at_pos(Point { x: 1, y: 1 }, Some(border_char));
 
     ltrender::restore_terminal()?;
@@ -192,7 +196,7 @@ fn video_render_test() -> Result<(), AppError> {
 
 #[track_caller]
 fn wait_for_test_data(timeout_ms: u64) -> Option<TerminalContentInformation> {
-    let start = Instant::now();
+    let start = std::time::Instant::now();
     let timeout = Duration::from_millis(timeout_ms);
 
     let baseline = get_test_data();
