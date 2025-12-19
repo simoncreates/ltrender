@@ -22,6 +22,11 @@ pub enum AppError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error("failed to send command to renderer")]
+    SendError,
+    #[error("failed to receive renderer Response")]
+    RecvError,
 }
 
 #[derive(Debug, Error)]

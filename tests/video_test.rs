@@ -8,6 +8,7 @@ use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::{AppError, DrawError};
 use ltrender::renderer::Buffered;
+use ltrender::renderer::render_handle::start_renderer_thread;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::TestCellDrawer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::standard_celldrawer::test_celldrawer::TerminalContentInformation;
@@ -81,12 +82,13 @@ fn video_render_test() -> Result<(), AppError> {
 
     let (cols, rows) = size()?;
     info!("screen size: {:?}", (cols, rows));
-    let mut r =
+    let renderer =
         Renderer::<DefaultScreenBuffer<TestCellDrawer>, Buffered>::create_renderer((cols, rows));
+    let mut r = start_renderer_thread(renderer);
 
-    r.set_update_interval(16);
+    r.set_update_interval(16)?;
 
-    let screen = r.create_screen(AreaRect::FullScreen, 5);
+    let screen = r.create_screen(AreaRect::FullScreen, 5)?;
     expect_no_data();
 
     let obj_id =
@@ -160,7 +162,7 @@ fn video_render_test() -> Result<(), AppError> {
             AreaPoint::BottomRight,
         ),
         0,
-    );
+    )?;
     // dropping, since the rect is drawnautomatically
     let _ = DrawObjectBuilder::default()
         .add_lifetime(ObjectLifetime::ExplicitRemove)

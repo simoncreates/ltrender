@@ -4,6 +4,8 @@ use crossterm::event::{Event, KeyCode, MouseEventKind, poll, read};
 use crossterm::terminal::size;
 use log::info;
 use ltrender::display_screen::AreaRect;
+use ltrender::renderer::render_handle::{RenderHandle, start_renderer_thread};
+use ltrender::renderer::{Buffered, RenderModeBehavior};
 use ltrender::terminal_buffer::buffer_and_celldrawer::CrosstermCellDrawer;
 use ltrender::terminal_buffer::buffer_and_celldrawer::DefaultScreenBuffer;
 use rand::Rng;
@@ -14,9 +16,8 @@ use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::draw_object_builder::videostream_drawable_builder::make_videostream_drawable;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::AppError;
-use ltrender::init_logger;
-use ltrender::renderer::RendererHandle;
-use ltrender::renderer::render_handle::RendererManager;
+use ltrender::{Renderer, ScreenBuffer, init_logger};
+
 use ltrender::terminal_buffer::buffer_and_celldrawer::shaders::Grayscale;
 use ltrender::terminal_buffer::standard_drawables::sprite_drawable::{
     AnimationInfo, FrameIdent, VideoLoopType, VideoSpeed,
@@ -105,7 +106,7 @@ fn make_agent_obj(layer: usize, col: Color) -> DrawObject {
 }
 
 fn seeded_swarm(
-    r: &mut RendererHandle,
+    r: &mut RenderHandle,
     screen_id: usize,
     n: usize,
     cols: u16,
@@ -148,7 +149,7 @@ fn seeded_swarm(
 
 fn spawn_soft_wave(
     sender: SyncSender<StreamFrame>,
-    ren: RendererHandle,
+    ren: RenderHandle,
     key: DrawObjectKey,
     size: (u16, u16),
     bg_member: TickMember,
@@ -192,11 +193,14 @@ pub fn main() -> Result<(), AppError> {
     let bg_member = tick_manager_rs::TickMember::new(manager_handle, 6);
 
     let (cols, rows) = size()?;
-    let (_manager, mut r) =
-        RendererManager::new::<DefaultScreenBuffer<CrosstermCellDrawer>>((cols, rows), 100);
+
+    let renderer = Renderer::<DefaultScreenBuffer<CrosstermCellDrawer>, Buffered>::create_renderer(
+        (cols, rows),
+    );
+    let mut r = start_renderer_thread(renderer);
     r.set_update_interval(16);
 
-    let screen = r.create_screen(AreaRect::FullScreen, 5);
+    let screen = r.create_screen(AreaRect::FullScreen, 5)?;
 
     let (tx, video_drawable) = make_videostream_drawable((0, 0), 1)?;
     let video_id = DrawObjectBuilder::default()
@@ -209,9 +213,7 @@ pub fn main() -> Result<(), AppError> {
     spawn_soft_wave(tx, r.clone(), video_id, (cols, rows), bg_member);
 
     // Optional: tiny sprite clock in the corner (if you have a .ascv around, otherwise harmless).
-    if let Ok(sprite) =
-        r.register_sprite_from_source("./assets/debugging/test_video.ascv".to_string())
-    {
+    if let Ok(sprite) = r.register_sprite_from_source("./assets/debugging/test_video.ascv") {
         let spr_draw = SpriteDrawableBuilder::default()
             .sprite_id(sprite)
             .position((0, 50))
@@ -303,7 +305,7 @@ pub fn main() -> Result<(), AppError> {
                         KeyCode::Char('n') => {
                             // Reseed: drop old agents visually and create new ones.
                             for a in &agents {
-                                r.explicit_remove_drawable(a.id);
+                                r.explicit_remove_drawable(&a.id);
                             }
                             agents = seeded_swarm(&mut r, screen, 140, cols, rows);
                         }
@@ -312,7 +314,7 @@ pub fn main() -> Result<(), AppError> {
                             if show_hud {
                                 r.render_drawable(hud_id);
                             } else {
-                                r.explicit_remove_drawable(hud_id);
+                                r.explicit_remove_drawable(&hud_id);
                             }
                         }
                         _ => {}
@@ -463,9 +465,9 @@ pub fn main() -> Result<(), AppError> {
 
     // cleanup
     for a in &agents {
-        r.explicit_remove_drawable(a.id);
+        r.explicit_remove_drawable(&a.id);
     }
-    r.explicit_remove_drawable(video_id);
+    r.explicit_remove_drawable(&video_id);
 
     ltrender::restore_terminal()?;
     Ok(())

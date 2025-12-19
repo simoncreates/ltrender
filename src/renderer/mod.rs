@@ -12,6 +12,8 @@ use common_stdx::{Point, Rect};
 use log::info;
 use std::collections::HashMap;
 
+pub mod render_handle;
+
 pub type SpriteId = usize;
 pub type ObjectId = usize;
 
