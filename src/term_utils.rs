@@ -13,7 +13,6 @@ use std::io::{Result, stdout};
 macro_rules! init_terminal {
     () => {
         $crate::initial_terminal_state().unwrap();
-        $crate::term_utils::restore_terminal().unwrap();
         ctrlc::set_handler(|| {
             let _ = restore_terminal();
             std::process::exit(130);
@@ -37,6 +36,7 @@ pub fn initial_terminal_state() -> Result<()> {
 }
 
 pub fn restore_terminal() -> Result<()> {
+    println!("restoring terminal");
     let mut stdout = stdout();
     execute!(
         stdout,
