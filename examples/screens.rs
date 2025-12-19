@@ -8,13 +8,15 @@ use ltrender::{
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
-    input_handler::hook::InputButton,
+    input_handler::{
+        hook::InputButton,
+        manager::{MouseButtons, TargetScreen},
+    },
     rendering::{
         render_handle::RenderHandle,
         render_thread::start_renderer_with_input,
         renderer::{Instant, RenderModeBehavior},
     },
-    restore_terminal,
     terminal_buffer::{
         buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
         standard_drawables::rect_drawable::ScreenFitType,
@@ -109,10 +111,10 @@ pub fn main() -> Result<(), AppError> {
     let renderer = Renderer::<DefaultScreenBuffer<CrosstermCellDrawer>, Instant>::create_renderer(
         (cols, rows),
     );
-    let (mut r, ev_handler, _ev_manager, _screen_sel) = start_renderer_with_input(renderer);
+    let (mut r, ev_handler, _ev_manager) = start_renderer_with_input(renderer);
     r.set_update_interval(1)?;
 
-    let hook = ev_handler.create_hook();
+    let mut hook = ev_handler.create_hook();
 
     let mut ad_screens = AdjustableScreens::new_uniform_grid(WIDTH, HEIGHT, &mut r)?;
     let mut builder = DrawObjectBuilder::default();
@@ -140,6 +142,12 @@ pub fn main() -> Result<(), AppError> {
         info!("manually rendering drawable: {:?}", d_key);
         r.render_drawable(d_key)?;
     }
+    let callback_hook = ev_handler.create_hook();
+    hook.on_mouse_button_press(MouseButtons::Left, move |_| {
+        if let TargetScreen::Screen(id) = callback_hook.current_selected_screen() {
+            info!("the screen: {}, is targeted", id);
+        }
+    })?;
     loop {
         if hook.is_pressed(InputButton::Key(KeyCode::Char('c'))) {
             info!("breaking out of the loop");

@@ -36,6 +36,10 @@ impl Screen {
         self.layer = new_layer;
     }
 
+    pub fn layer(&self) -> usize {
+        self.layer
+    }
+
     /// register a drawable, so it can be drawn on this screen
     pub fn register_drawable(&mut self, obj_id: ObjectId, obj_library: &DrawObjectLibrary) {
         if !self.draw_objects.contains(&obj_id)

@@ -237,7 +237,6 @@ impl EventHook {
                 }
             },
         };
-        info!("is_pressed({:?}) -> {}", button, result);
         result
     }
 
@@ -270,5 +269,21 @@ impl EventHook {
                 }
             }
         }
+    }
+
+    pub fn mouse_pos(&self) -> (u16, u16) {
+        let st = self
+            .input_manager_state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        st.mouse_state.mouse_pos
+    }
+
+    pub fn current_selected_screen(&self) -> TargetScreen {
+        let st = self
+            .input_manager_state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        st.targeted_screen
     }
 }

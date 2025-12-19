@@ -8,7 +8,6 @@ use ltrender::{
         hook::InputButton,
         manager::{MouseButtons, MouseMessage, SubscriptionMessage, TargetScreen},
     },
-    restore_terminal,
 };
 
 fn main() {

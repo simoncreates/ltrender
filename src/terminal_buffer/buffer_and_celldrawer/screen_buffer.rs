@@ -33,7 +33,6 @@ pub struct BatchDrawInfo {
     pub segments: Vec<BatchSegment>,
 }
 
-/// Public API that combines the core bookkeeping with the drawing layer
 pub trait ScreenBuffer: ScreenBufferCore {
     type Drawer: CellDrawer + Send + 'static;
     fn new(size: (u16, u16)) -> Self

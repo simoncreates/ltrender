@@ -1,10 +1,10 @@
 use std::{sync::mpsc, thread, time::Duration};
 
 #[cfg(feature = "screen_select_subscription")]
-use crate::{CrosstermEventManager, input_handler::screen_select_handler::ScreenSelectHandler};
+use crate::CrosstermEventManager;
 use crate::{
     Renderer, ScreenBuffer,
-    input_handler::manager::EventHandler,
+    input_handler::{hook::EventHook, manager::EventHandler},
     rendering::{
         render_handle::{RenderCommand, RenderHandle},
         renderer::RenderModeBehavior,
@@ -12,7 +12,10 @@ use crate::{
     terminal_buffer::CellDrawer,
 };
 
-fn start_thread<B, M>(mut renderer: Renderer<B, M>) -> RenderHandle<M>
+fn start_thread<B, M>(
+    mut renderer: Renderer<B, M>,
+    event_hook: Option<EventHook>,
+) -> RenderHandle<M>
 where
     B: ScreenBuffer + Send + 'static,
     B::Drawer: CellDrawer + Send + 'static,
@@ -27,6 +30,9 @@ where
             if current_time.elapsed() >= Duration::from_millis(2) {
                 current_time = std::time::Instant::now();
                 let _ = renderer.remove_all_framebased_objects();
+            }
+            if let Some(hook) = &event_hook {
+                let _ = renderer.handle_screen_selection(hook);
             }
             match cmd {
                 RenderCommand::CreateScreen { rect, layer, resp } => {
@@ -169,17 +175,12 @@ where
     B::Drawer: CellDrawer + Send + 'static,
     M: RenderModeBehavior + Send + 'static,
 {
-    start_thread(renderer)
+    start_thread(renderer, None)
 }
 #[cfg(feature = "screen_select_subscription")]
 pub fn start_renderer_with_input<B, M>(
-    renderer: Renderer<B, M>,
-) -> (
-    RenderHandle<M>,
-    EventHandler,
-    CrosstermEventManager,
-    ScreenSelectHandler,
-)
+    mut renderer: Renderer<B, M>,
+) -> (RenderHandle<M>, EventHandler, CrosstermEventManager)
 where
     B: ScreenBuffer + Send + 'static,
     B::Drawer: CellDrawer + Send + 'static,
@@ -189,10 +190,10 @@ where
 
     let (event_mngr, event_handler, screen_sel_handler) =
         CrosstermEventManager::new_with_select_sub(TargetScreen::None);
+    renderer.add_screen_select_handler(screen_sel_handler);
     (
-        start_thread(renderer),
+        start_thread(renderer, Some(event_handler.create_hook())),
         event_handler,
         event_mngr,
-        screen_sel_handler,
     )
 }

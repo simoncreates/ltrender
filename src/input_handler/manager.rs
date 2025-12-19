@@ -686,7 +686,6 @@ impl CrosstermEventManager {
                         match recv.recv_timeout(max_wait) {
                             Ok(opt_target_screen) => {
                                 if let Some(screen) = opt_target_screen {
-                                    info!("set target screen to: {:?}", screen);
                                     st.targeted_screen = screen;
                                 }
                             }

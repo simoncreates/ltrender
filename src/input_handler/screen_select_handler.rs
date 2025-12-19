@@ -4,7 +4,7 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Receiver, Sender},
     },
-    thread::{self, JoinHandle},
+    thread::JoinHandle,
 };
 
 pub type ScreenSelectcallback = Box<dyn FnMut(SubscriptionMessage) -> Option<TargetScreen> + Send>;
@@ -40,36 +40,6 @@ impl ScreenSelectHandler {
         target_screen: Option<TargetScreen>,
     ) -> Result<(), mpsc::SendError<Option<TargetScreen>>> {
         self.send.send(target_screen)
-    }
-
-    pub fn run(
-        &mut self,
-        callback: impl FnMut(SubscriptionMessage) -> Option<TargetScreen> + Send + 'static,
-    ) {
-        let recv = Arc::clone(&self.recv);
-        let send = Arc::clone(&self.send);
-
-        let handle = thread::spawn(move || {
-            let mut callback = callback;
-            loop {
-                let msg_res = {
-                    let guard = recv.lock().expect("recv mutex poisoned");
-                    guard.recv()
-                };
-
-                match msg_res {
-                    Ok(msg) => {
-                        let result = { callback(msg) };
-
-                        let _ = send.send(result);
-                    }
-                    Err(_) => {
-                        break;
-                    }
-                }
-            }
-        });
-        self.handle = Some(handle);
     }
 
     pub fn join(&mut self) {

@@ -17,7 +17,7 @@ use ltrender::draw_object_builder::SpriteDrawableBuilder;
 use ltrender::draw_object_builder::videostream_drawable_builder::make_videostream_drawable;
 use ltrender::drawable_register::ObjectLifetime;
 use ltrender::error::AppError;
-use ltrender::{Renderer, init_logger};
+use ltrender::{Renderer, init_logger, init_terminal};
 
 use ltrender::terminal_buffer::buffer_and_celldrawer::shaders::Grayscale;
 use ltrender::terminal_buffer::standard_drawables::sprite_drawable::{
@@ -184,17 +184,15 @@ fn spawn_soft_wave(
 }
 
 pub fn main() -> Result<(), AppError> {
-    ltrender::initial_terminal_state()?;
+    init_terminal!();
     init_logger("./organic_swarm.log")?;
 
     // creating the tick manager for syncing the waves with the main swarm
     let (_manager, manager_handle) = TickManager::new(tick_manager_rs::Speed::Fps(50));
     let main_member = tick_manager_rs::TickMember::new(manager_handle.clone(), 1);
-    // running at half the speed
     let bg_member = tick_manager_rs::TickMember::new(manager_handle, 6);
 
     let (cols, rows) = size()?;
-
     let renderer = Renderer::<DefaultScreenBuffer<CrosstermCellDrawer>, Buffered>::create_renderer(
         (cols, rows),
     );

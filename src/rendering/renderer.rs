@@ -1,6 +1,9 @@
 use crate::ScreenBuffer;
 use crate::display_screen::AreaRect;
 use crate::drawable_register::ObjectLifetime;
+use crate::input_handler::hook::EventHook;
+use crate::input_handler::manager::{MouseMessage, SubscriptionMessage, TargetScreen};
+use crate::input_handler::screen_select_handler::ScreenSelectHandler;
 use crate::terminal_buffer::CellDrawer;
 use crate::terminal_buffer::drawable::Drawable;
 use crate::{
@@ -11,6 +14,7 @@ use ascii_assets::AsciiVideo;
 use common_stdx::{Point, Rect};
 use log::info;
 use std::collections::HashMap;
+use std::sync::mpsc::TryRecvError;
 
 pub type SpriteId = usize;
 pub type ObjectId = usize;
@@ -99,6 +103,7 @@ where
     sprites: SpriteRegistry,
     update_interval_expand_amount: usize,
     terminal_size: (u16, u16),
+    screen_select_handler: Option<ScreenSelectHandler>,
     _mode: std::marker::PhantomData<M>,
 }
 
@@ -126,6 +131,7 @@ where
             sprites: SpriteRegistry::new(),
             update_interval_expand_amount: 50000,
             terminal_size: size,
+            screen_select_handler: None,
             _mode: std::marker::PhantomData,
         }
     }
@@ -549,6 +555,57 @@ where
         Ok(result)
     }
 
+    /// selects a different screen, if a mouse button has been clicked
+    /// the EventHook is needed to access the mouse's current position
+    pub fn handle_screen_selection(&self, hook: &EventHook) -> Result<(), AppError> {
+        if let Some(screen_sel_h) = &self.screen_select_handler {
+            let (p1, p2) = {
+                let m_pos = hook.mouse_pos();
+                (m_pos.0 as i32, m_pos.1 as i32)
+            };
+
+            loop {
+                match screen_sel_h.try_recv() {
+                    Ok(m) => {
+                        if let SubscriptionMessage::Mouse { msg, screen: _ } = m
+                            && let MouseMessage::Pressed(_) = msg
+                        {
+                            // find the highest screen at that position
+                            let mut current_highest_screen = (usize::MAX, 0);
+                            for (id, screen) in &self.screens {
+                                let screen_layer = screen.layer();
+                                if screen.rect().contains(Point::from((p1, p2)))
+                                    && screen_layer >= current_highest_screen.1
+                                {
+                                    current_highest_screen = (*id, screen_layer);
+                                }
+                            }
+
+                            if self.screens.contains_key(&current_highest_screen.0) {
+                                screen_sel_h
+                                    .send(Some(TargetScreen::Screen(current_highest_screen.0)))
+                                    .map_err(|_| AppError::SendError)?;
+                            } else {
+                                screen_sel_h
+                                    .send(Some(TargetScreen::None))
+                                    .map_err(|_| AppError::SendError)?;
+                            }
+                        } else {
+                            // if no relevant button is pressed, nothing  should change
+                            screen_sel_h.send(None).map_err(|_| AppError::SendError)?;
+                        }
+                    }
+                    Err(TryRecvError::Empty) => break,
+                    Err(TryRecvError::Disconnected) => break,
+                }
+            }
+        }
+        Ok(())
+    }
+    pub fn add_screen_select_handler(&mut self, screen_select_handler: ScreenSelectHandler) {
+        self.screen_select_handler = Some(screen_select_handler);
+    }
+
     pub fn into_buffered(self) -> Renderer<B, M> {
         Renderer {
             screens: self.screens,
@@ -557,6 +614,7 @@ where
             sprites: self.sprites,
             update_interval_expand_amount: self.update_interval_expand_amount,
             terminal_size: self.terminal_size,
+            screen_select_handler: self.screen_select_handler,
             _mode: std::marker::PhantomData,
         }
     }
@@ -569,6 +627,7 @@ where
             sprites: self.sprites,
             update_interval_expand_amount: self.update_interval_expand_amount,
             terminal_size: self.terminal_size,
+            screen_select_handler: self.screen_select_handler,
             _mode: std::marker::PhantomData,
         }
     }
