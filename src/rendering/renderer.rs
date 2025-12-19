@@ -39,6 +39,14 @@ pub trait RenderModeBehavior {
     fn render_all<B: ScreenBuffer>(renderer: &mut Renderer<B, Self>) -> Result<(), DrawError>
     where
         Self: Sized;
+
+    // describes the rendering behavior, right after a drawable has been registered
+    fn register_render<B: ScreenBuffer>(
+        renderer: &mut Renderer<B, Self>,
+        object_key: DrawObjectKey,
+    ) -> Result<(), DrawError>
+    where
+        Self: Sized;
 }
 
 impl RenderModeBehavior for Instant {
@@ -65,6 +73,23 @@ impl RenderModeBehavior for Instant {
         Self::refresh(renderer)?;
         Ok(())
     }
+    fn register_render<B: ScreenBuffer>(
+        renderer: &mut Renderer<B, Self>,
+        object_key: DrawObjectKey,
+    ) -> Result<(), DrawError>
+    where
+        Self: Sized,
+    {
+        if let Some(s) = renderer.screens.get_mut(&object_key.screen_id) {
+            s.render_all(
+                &mut renderer.screen_buffer,
+                &mut renderer.obj_library,
+                &renderer.sprites,
+            )?;
+        };
+        renderer.forced_refresh()?;
+        Ok(())
+    }
 }
 
 impl RenderModeBehavior for Buffered {
@@ -76,6 +101,15 @@ impl RenderModeBehavior for Buffered {
     }
     // noop, since buffered rendering does not need to refresh
     fn refresh<B: ScreenBuffer>(_renderer: &mut Renderer<B, Self>) -> Result<(), DrawError> {
+        Ok(())
+    }
+    fn register_render<B: ScreenBuffer>(
+        _renderer: &mut Renderer<B, Self>,
+        _object_key: DrawObjectKey,
+    ) -> Result<(), DrawError>
+    where
+        Self: Sized,
+    {
         Ok(())
     }
     // might change up the impl here
@@ -224,11 +258,12 @@ where
                 },
                 area,
             )?;
-            M::refresh(self)?;
-            Ok(DrawObjectKey {
+            let key = DrawObjectKey {
                 screen_id,
                 object_id: new_obj_id,
-            })
+            };
+            M::register_render(self, key)?;
+            Ok(key)
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
         }
@@ -340,7 +375,7 @@ where
 
             s.register_drawable(object_key.object_id, &self.obj_library);
 
-            M::refresh(self)?;
+            M::register_render(self, object_key)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(object_key.screen_id))

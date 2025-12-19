@@ -41,11 +41,13 @@ impl Drawable for VideoStreamDrawable {
     }
 
     fn draw(&mut self, _: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
-        match self.receiver.try_recv() {
-            Ok(frame) => self.last_frame = frame,
-            Err(TryRecvError::Empty) => {}
-            Err(TryRecvError::Disconnected) => return Ok(BasicDrawCreator::new()),
-        };
+        loop {
+            match self.receiver.try_recv() {
+                Ok(frame) => self.last_frame = frame,
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => return Ok(BasicDrawCreator::new()),
+            };
+        }
         let frame = &self.last_frame;
         self.size = frame.size;
         let width = self.size.0 as usize;

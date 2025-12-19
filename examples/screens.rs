@@ -1,3 +1,5 @@
+use std::{sync::mpsc, time::Duration};
+
 use ascii_assets::TerminalChar;
 use common_stdx::Rect;
 use crossterm::{event::KeyCode, terminal::size};
@@ -5,6 +7,7 @@ use log::info;
 use ltrender::{
     DrawObjectBuilder, Renderer, ScreenKey,
     display_screen::AreaRect,
+    draw_object_builder::VideoStreamDrawableBuilder,
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
@@ -18,8 +21,11 @@ use ltrender::{
         renderer::{Instant, RenderModeBehavior},
     },
     terminal_buffer::{
-        buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
-        standard_drawables::rect_drawable::ScreenFitType,
+        buffer_and_celldrawer::{
+            CrosstermCellDrawer, DefaultScreenBuffer,
+            standard_celldrawer::test_celldrawer::TerminalContentInformation,
+        },
+        standard_drawables::{rect_drawable::ScreenFitType, videostream_drawable::StreamFrame},
     },
 };
 
@@ -117,9 +123,9 @@ pub fn main() -> Result<(), AppError> {
     let mut hook = ev_handler.create_hook();
 
     let mut ad_screens = AdjustableScreens::new_uniform_grid(WIDTH, HEIGHT, &mut r)?;
-    let mut builder = DrawObjectBuilder::default();
 
     for screen in &mut ad_screens {
+        let builder = DrawObjectBuilder::default();
         let d_key = builder
             .layer(100)
             .rect_drawable(|r| {
@@ -142,10 +148,30 @@ pub fn main() -> Result<(), AppError> {
         info!("manually rendering drawable: {:?}", d_key);
         r.render_drawable(d_key)?;
     }
+
+    let (s, recv) = mpsc::channel();
+    let builder = DrawObjectBuilder::default();
+    let text_stream = builder
+        .layer(200)
+        .videostream_drawable(|b| b.position((0, 0)).recv(recv))?
+        .add_lifetime(ObjectLifetime::ExplicitRemove)
+        .screen(0)
+        .build(&mut r)?;
     let callback_hook = ev_handler.create_hook();
+    let callback_renderh: RenderHandle<Instant> = r.clone();
     hook.on_mouse_button_press(MouseButtons::Left, move |_| {
         if let TargetScreen::Screen(id) = callback_hook.current_selected_screen() {
-            info!("the screen: {}, is targeted", id);
+            let msg = format!("selected_screen: {}", id);
+            info!("{}", msg);
+            let mut data = Vec::new();
+            for chr in msg.chars() {
+                data.push(Some(TerminalChar::from_char(chr)));
+            }
+            let _ = s.send(StreamFrame {
+                size: (data.len() as u16, 1),
+                data,
+            });
+            let _ = callback_renderh.render_drawable(text_stream);
         }
     })?;
     loop {

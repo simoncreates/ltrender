@@ -22,7 +22,7 @@ pub use videostream_drawable_builder::VideoStreamDrawableBuilder;
 
 macro_rules! allow_drawable_building {
     ($builder_name:ident, $fn_name:ident) => {
-        pub fn $fn_name<F>(&mut self, build_fn: F) -> Result<&mut Self, DrawObjectBuilderError>
+        pub fn $fn_name<F>(mut self, build_fn: F) -> Result<Self, DrawObjectBuilderError>
         where
             F: FnOnce($builder_name) -> $builder_name,
         {
@@ -37,7 +37,7 @@ macro_rules! allow_drawable_building {
 #[macro_export]
 macro_rules! handle_field {
     ($fn_name:ident, $field_name:ident, $type:ty) => {
-        pub fn $fn_name(&mut self, $field_name: $type) -> &mut Self {
+        pub fn $fn_name(mut self, $field_name: $type) -> Self {
             self.$field_name = Some($field_name);
             self
         }
@@ -79,7 +79,7 @@ impl DrawObjectBuilder {
     handle_field!(layer, layer, usize);
     handle_field!(screen, screen_id, usize);
     handle_field!(add_lifetime, lt, ObjectLifetime);
-    pub fn shader<T>(&mut self, shader: T) -> &mut Self
+    pub fn shader<T>(mut self, shader: T) -> Self
     where
         T: Shader + 'static,
     {
@@ -87,7 +87,7 @@ impl DrawObjectBuilder {
         self
     }
 
-    pub fn drawable(&mut self, drawable: Box<dyn Drawable>) -> &mut Self {
+    pub fn drawable(mut self, drawable: Box<dyn Drawable>) -> Self {
         self.drawable = Some(drawable);
         self
     }

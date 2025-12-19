@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-use crate::{handle_field, handle_pointed_field};
+use crate::handle_pointed_field;
 
 #[derive(Default)]
 pub struct VideoStreamDrawableBuilder {
@@ -25,7 +25,10 @@ impl VideoStreamDrawableBuilder {
     }
 
     handle_pointed_field!(position, position);
-    handle_field!(size, size, (u16, u16));
+    pub fn size(mut self, size: (u16, u16)) -> Self {
+        self.size = Some(size);
+        self
+    }
     pub fn recv(mut self, receiver: Receiver<StreamFrame>) -> Self {
         self.receiver = Some(receiver);
         self

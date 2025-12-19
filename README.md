@@ -6,7 +6,8 @@ powerful rendering engine for terminal tools and games.
 ## TODO:
 - documentation
 - more examples
-- allow the screen select handler to be passed into renderer
+- fix bug in screens demo, where the selected screen text is not shown after the first click
+it is related to the screen select handler, which does not detect the first click
 
 ## Improve:
 - add more testing
