@@ -664,6 +664,8 @@ impl CrosstermEventManager {
                     Err(_) => continue,
                 };
 
+                let mut key_is_repeating = false;
+
                 {
                     let mut st = get_state!();
 
@@ -671,8 +673,14 @@ impl CrosstermEventManager {
                         Event::Key(key_event) => {
                             if key_event.is_press() {
                                 let target_screen = st.targeted_screen;
-                                st.pressed_keys
-                                    .insert(key_event.code, (*key_event, target_screen));
+
+                                if let std::collections::hash_map::Entry::Vacant(e) =
+                                    st.pressed_keys.entry(key_event.code)
+                                {
+                                    e.insert((*key_event, target_screen));
+                                } else {
+                                    key_is_repeating = true;
+                                }
                             } else if key_event.is_release() {
                                 st.pressed_keys.remove(&key_event.code);
                             }
@@ -775,7 +783,7 @@ impl CrosstermEventManager {
                         let screen = st.targeted_screen;
 
                         if key_event.is_press() {
-                            let msg = if st.pressed_keys.contains_key(&key_event.code) {
+                            let msg = if key_is_repeating {
                                 KeyMessage::Repeating(key_event.code)
                             } else {
                                 KeyMessage::Pressed(key_event.code)
