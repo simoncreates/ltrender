@@ -1,12 +1,9 @@
 use common_stdx::Point;
 
 use crate::{
-    SpriteDrawable, SpriteId,
+    Drawable, SpriteDrawable, SpriteId,
     error::DrawObjectBuilderError,
-    terminal_buffer::{
-        Drawable,
-        standard_drawables::sprite_drawable::{AnimationInfo, FrameIdent},
-    },
+    terminal_buffer::standard_drawables::sprite_drawable::{AnimationInfo, FrameIdent},
 };
 
 use crate::handle_pointed_field;

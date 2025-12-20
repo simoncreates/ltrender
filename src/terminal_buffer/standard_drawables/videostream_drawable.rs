@@ -1,8 +1,8 @@
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use crate::{
-    DrawError, SpriteRegistry,
-    terminal_buffer::{BasicDrawCreator, Drawable, drawable::SinglePointed},
+    DrawError, Drawable, SinglePointed, SpriteRegistry,
+    drawable_traits::basic_draw_creator::BasicDrawCreator,
     update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;

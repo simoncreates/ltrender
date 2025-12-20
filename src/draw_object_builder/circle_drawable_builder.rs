@@ -1,6 +1,5 @@
 use crate::{
-    error::DrawObjectBuilderError,
-    terminal_buffer::{drawable::Drawable, standard_drawables::CircleDrawable},
+    Drawable, error::DrawObjectBuilderError, terminal_buffer::standard_drawables::CircleDrawable,
 };
 use ascii_assets::TerminalChar;
 use common_stdx::Point;

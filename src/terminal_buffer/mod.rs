@@ -1,6 +1,3 @@
-pub mod drawable;
-pub use drawable::Drawable;
-
 pub mod standard_drawables;
 pub use standard_drawables::{LineDrawable, RectDrawable, SpriteDrawable};
 
@@ -9,6 +6,3 @@ pub use character_info::{CharacterInfo, CharacterInfoList};
 
 pub mod buffer_and_celldrawer;
 pub use buffer_and_celldrawer::{CellDrawer, ScreenBuffer, ScreenBufferCore};
-
-pub mod basic_draw_creator;
-pub use basic_draw_creator::BasicDrawCreator;

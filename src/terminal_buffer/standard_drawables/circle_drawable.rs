@@ -1,6 +1,6 @@
 use crate::{
-    DrawError, SpriteRegistry,
-    terminal_buffer::{BasicDrawCreator, Drawable, drawable::DoublePointed},
+    DoublePointed, DrawError, Drawable, SpriteRegistry,
+    drawable_traits::basic_draw_creator::BasicDrawCreator,
     update_interval_handler::UpdateIntervalCreator,
 };
 use ascii_assets::TerminalChar;

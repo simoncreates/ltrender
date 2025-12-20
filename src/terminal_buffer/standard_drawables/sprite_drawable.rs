@@ -1,8 +1,8 @@
 use common_stdx::{Point, Rect};
 
 use crate::{
-    DrawError, SpriteEntry, SpriteId, SpriteRegistry,
-    terminal_buffer::{BasicDrawCreator, Drawable, drawable::SinglePointed},
+    DrawError, Drawable, SinglePointed, SpriteEntry, SpriteId, SpriteRegistry,
+    drawable_traits::basic_draw_creator::BasicDrawCreator,
     update_interval_handler::UpdateIntervalCreator,
 };
 

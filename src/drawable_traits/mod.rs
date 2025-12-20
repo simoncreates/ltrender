@@ -1,11 +1,13 @@
 use crate::{
-    DrawError, SpriteRegistry, terminal_buffer::BasicDrawCreator,
+    DrawError, SpriteRegistry, drawable_traits::basic_draw_creator::BasicDrawCreator,
     update_interval_handler::UpdateIntervalCreator,
 };
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 use log::warn;
+
+pub mod basic_draw_creator;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BasicDraw {

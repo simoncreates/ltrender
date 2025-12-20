@@ -3,11 +3,9 @@ use std::sync::mpsc::{self, Receiver};
 use common_stdx::Point;
 
 use crate::{
+    Drawable,
     error::DrawObjectBuilderError,
-    terminal_buffer::{
-        Drawable,
-        standard_drawables::{VideoStreamDrawable, videostream_drawable::StreamFrame},
-    },
+    terminal_buffer::standard_drawables::{VideoStreamDrawable, videostream_drawable::StreamFrame},
 };
 
 use crate::handle_pointed_field;
@@ -52,13 +50,8 @@ impl VideoStreamDrawableBuilder {
 pub fn make_videostream_drawable(
     position: impl Into<Point<i32>>,
     max_bounds: usize,
-) -> Result<
-    (
-        mpsc::SyncSender<StreamFrame>,
-        Box<dyn crate::terminal_buffer::Drawable>,
-    ),
-    crate::error::DrawObjectBuilderError,
-> {
+) -> Result<(mpsc::SyncSender<StreamFrame>, Box<dyn Drawable>), crate::error::DrawObjectBuilderError>
+{
     let (sender, receiver) = mpsc::sync_channel::<StreamFrame>(max_bounds);
 
     let drawable = VideoStreamDrawableBuilder::new()

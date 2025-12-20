@@ -1,3 +1,4 @@
+use crate::Drawable;
 use crate::ScreenBuffer;
 use crate::display_screen::AreaRect;
 use crate::drawable_register::ObjectLifetime;
@@ -5,7 +6,6 @@ use crate::input_handler::hook::EventHook;
 use crate::input_handler::manager::{MouseMessage, SubscriptionMessage, TargetScreen};
 use crate::input_handler::screen_select_handler::ScreenSelectHandler;
 use crate::terminal_buffer::CellDrawer;
-use crate::terminal_buffer::drawable::Drawable;
 use crate::{
     DrawError, DrawObject, DrawObjectKey, DrawObjectLibrary, Screen, ScreenKey, SpriteEntry,
     SpriteRegistry, error::AppError,

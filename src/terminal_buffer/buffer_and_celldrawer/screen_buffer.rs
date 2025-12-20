@@ -1,8 +1,6 @@
 use crate::{
-    DrawError, DrawObject, ObjectId, SpriteRegistry, UpdateInterval,
-    terminal_buffer::{
-        CellDrawer, CharacterInfo, CharacterInfoList, ScreenBufferCore, drawable::BasicDraw,
-    },
+    BasicDraw, DrawError, DrawObject, ObjectId, SpriteRegistry, UpdateInterval,
+    terminal_buffer::{CellDrawer, CharacterInfo, CharacterInfoList, ScreenBufferCore},
     update_interval_handler::UpdateIntervalCreator,
 };
 use common_stdx::Rect;

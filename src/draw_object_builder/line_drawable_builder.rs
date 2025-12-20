@@ -1,12 +1,9 @@
 use ascii_assets::TerminalChar;
 use common_stdx::Point;
 
-use crate::{
-    error::DrawObjectBuilderError,
-    terminal_buffer::{Drawable, LineDrawable},
-};
+use crate::{error::DrawObjectBuilderError, terminal_buffer::LineDrawable};
 
-use crate::{handle_char_field, handle_pointed_field};
+use crate::{Drawable, handle_char_field, handle_pointed_field};
 
 #[derive(Default)]
 pub struct LineDrawableBuilder {

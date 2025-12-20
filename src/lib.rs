@@ -7,6 +7,11 @@ pub use update_interval_handler::{UpdateInterval, UpdateIntervalHandler};
 pub mod terminal_buffer;
 pub use terminal_buffer::{ScreenBuffer, SpriteDrawable};
 
+pub mod drawable_traits;
+pub use drawable_traits::{
+    BasicDraw, DoublePointed, Drawable, MultiPointed, ScreenFitting, SinglePointed,
+};
+
 pub mod sprite_register;
 pub use sprite_register::{SpriteEntry, SpriteRegistry};
 

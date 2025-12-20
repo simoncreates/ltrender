@@ -1,11 +1,11 @@
 use std::time::Instant;
 
 use crate::{
-    DrawObject, DrawObjectKey, ScreenKey,
+    DrawObject, DrawObjectKey, Drawable, ScreenKey,
     drawable_register::ObjectLifetime,
     error::{AppError, DrawObjectBuilderError},
     rendering::{render_handle::RenderHandle, renderer::RenderModeBehavior},
-    terminal_buffer::{Drawable, buffer_and_celldrawer::Shader},
+    terminal_buffer::buffer_and_celldrawer::Shader,
 };
 pub mod sprite_drawable_builder;
 pub use sprite_drawable_builder::SpriteDrawableBuilder;

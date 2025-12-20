@@ -7,7 +7,7 @@
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 
-use crate::terminal_buffer::drawable::BasicDraw;
+use crate::BasicDraw;
 
 /// A small collector of drawable terminal operations.
 ///

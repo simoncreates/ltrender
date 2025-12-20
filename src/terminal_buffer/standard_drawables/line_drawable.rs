@@ -2,8 +2,8 @@ use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
 
 use crate::{
-    DrawError, SpriteRegistry, error,
-    terminal_buffer::{self, BasicDrawCreator, Drawable, drawable::DoublePointed},
+    DoublePointed, DrawError, Drawable, SpriteRegistry,
+    drawable_traits::basic_draw_creator::BasicDrawCreator, error,
     update_interval_handler::UpdateIntervalCreator,
 };
 
@@ -45,11 +45,7 @@ impl Drawable for LineDrawable {
     fn as_double_pointed_mut(&mut self) -> Option<&mut dyn DoublePointed> {
         Some(self)
     }
-    fn draw(
-        &mut self,
-        _sprites: &SpriteRegistry,
-    ) -> std::result::Result<terminal_buffer::basic_draw_creator::BasicDrawCreator, error::DrawError>
-    {
+    fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<BasicDrawCreator, error::DrawError> {
         let mut bd_creator = BasicDrawCreator::new();
         bd_creator.draw_line(self.start, self.end, self.chr);
 

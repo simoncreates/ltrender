@@ -4,7 +4,7 @@ use ascii_assets::TerminalChar;
 use common_stdx::Point;
 
 use crate::{
-    terminal_buffer::{BasicDrawCreator, Drawable, drawable::MultiPointed},
+    Drawable, MultiPointed, drawable_traits::basic_draw_creator::BasicDrawCreator,
     update_interval_handler::UpdateIntervalCreator,
 };
 

@@ -2,10 +2,10 @@ use std::sync::mpsc;
 
 use common_stdx::Point;
 
+use crate::Drawable;
 use crate::display_screen::AreaRect;
 use crate::error::AppError;
 use crate::rendering::renderer::{Buffered, Instant, RenderModeBehavior};
-use crate::terminal_buffer::Drawable;
 use crate::{DrawObject, DrawObjectKey, ScreenKey, SpriteId};
 
 pub enum RenderCommand {

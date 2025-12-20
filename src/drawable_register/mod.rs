@@ -1,7 +1,4 @@
-use crate::{
-    ObjectId, ScreenKey,
-    terminal_buffer::{Drawable, buffer_and_celldrawer::Shader},
-};
+use crate::{Drawable, ObjectId, ScreenKey, terminal_buffer::buffer_and_celldrawer::Shader};
 use std::{
     collections::HashMap,
     time::{Duration, Instant},

@@ -2,8 +2,7 @@ use ascii_assets::TerminalChar;
 use common_stdx::Point;
 
 use crate::{
-    error::DrawObjectBuilderError,
-    terminal_buffer::{Drawable, standard_drawables::PolygonDrawable},
+    Drawable, error::DrawObjectBuilderError, terminal_buffer::standard_drawables::PolygonDrawable,
 };
 
 use crate::handle_char_field;

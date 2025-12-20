@@ -2,13 +2,11 @@ use ascii_assets::TerminalChar;
 use common_stdx::Rect;
 
 use crate::{
+    Drawable,
     error::DrawObjectBuilderError,
-    terminal_buffer::{
-        Drawable,
-        standard_drawables::{
-            RectDrawable,
-            rect_drawable::{BorderStyle, ScreenFitType},
-        },
+    terminal_buffer::standard_drawables::{
+        RectDrawable,
+        rect_drawable::{BorderStyle, ScreenFitType},
     },
 };
 

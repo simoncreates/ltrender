@@ -3,7 +3,7 @@ use common_stdx::Point;
 use dyn_clone::DynClone;
 use std::fmt::Debug;
 
-use crate::terminal_buffer::drawable::BasicDraw;
+use crate::BasicDraw;
 
 pub trait Shader: Send + Sync + Debug + DynClone {
     fn apply(&self, draw: &mut BasicDraw, frame_size: (usize, usize), top_left: Point<i32>);
