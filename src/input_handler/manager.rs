@@ -658,197 +658,182 @@ impl CrosstermEventManager {
                 if !event::poll(Duration::from_millis(10)).unwrap_or(false) {
                     continue;
                 }
+
                 let mut ev = match event::read() {
                     Ok(ev) => ev,
                     Err(_) => continue,
                 };
 
-                // after an event is received, attempt to send a message to the screen selection handler, if one is present
-                // this will be done before all of the subscription message, to allow all the following ones to be sent to the correct screen directly
-                #[cfg(feature = "screen_select_subscription")]
-                if let Some(select_arc) = &mut screen_select_handler {
+                {
                     let mut st = get_state!();
 
-                    let subscription_msg =
-                        create_subscription_message_from_ev(&mut ev, st.targeted_screen);
-
-                    match select_arc.1.send(subscription_msg) {
-                        Ok(()) => {}
-                        Err(_) => {
-                            return;
+                    match &ev {
+                        Event::Key(key_event) => {
+                            if key_event.is_press() {
+                                let target_screen = st.targeted_screen;
+                                st.pressed_keys
+                                    .insert(key_event.code, (*key_event, target_screen));
+                            } else if key_event.is_release() {
+                                st.pressed_keys.remove(&key_event.code);
+                            }
                         }
+
+                        Event::FocusGained => {
+                            st.is_terminal_focused = true;
+                        }
+
+                        Event::FocusLost => {
+                            st.is_terminal_focused = false;
+                            st.pressed_keys.clear();
+                        }
+
+                        Event::Mouse(mouse_event) => {
+                            fn set_mouse_button(
+                                state: &mut MouseState,
+                                button: &MouseButton,
+                                button_state: MouseButtonState,
+                            ) {
+                                match button {
+                                    MouseButton::Left => state.left_pressed = button_state,
+                                    MouseButton::Right => state.right_pressed = button_state,
+                                    MouseButton::Middle => state.middle_pressed = button_state,
+                                }
+                            }
+
+                            match mouse_event.kind {
+                                MouseEventKind::Down(b) => {
+                                    set_mouse_button(
+                                        &mut st.mouse_state,
+                                        &b,
+                                        MouseButtonState::Pressed,
+                                    );
+                                }
+                                MouseEventKind::Up(b) => {
+                                    set_mouse_button(
+                                        &mut st.mouse_state,
+                                        &b,
+                                        MouseButtonState::Released,
+                                    );
+                                }
+                                MouseEventKind::Drag(b) => {
+                                    set_mouse_button(
+                                        &mut st.mouse_state,
+                                        &b,
+                                        MouseButtonState::Dragging,
+                                    );
+                                }
+                                _ => {}
+                            }
+
+                            st.mouse_state.mouse_pos = (mouse_event.column, mouse_event.row);
+                        }
+
+                        Event::Resize(w, h) => {
+                            st.terminal_size = (*w, *h);
+                        }
+
+                        _ => {}
+                    }
+                }
+
+                #[cfg(feature = "screen_select_subscription")]
+                if let Some(select_arc) = &mut screen_select_handler {
+                    // snapshot state needed for selector
+                    let targeted_screen = {
+                        let st = get_state!();
+                        st.targeted_screen
+                    };
+
+                    let selector_msg =
+                        create_subscription_message_from_ev(&mut ev, targeted_screen);
+
+                    if select_arc.1.send(selector_msg).is_err() {
+                        return;
                     }
 
                     let max_wait = max_screen_selector_reponse_wait_time;
+
                     if let Ok(recv) = select_arc.0.lock() {
                         use std::sync::mpsc::RecvTimeoutError;
 
                         match recv.recv_timeout(max_wait) {
-                            Ok(opt_target_screen) => {
-                                if let Some(screen) = opt_target_screen {
-                                    st.targeted_screen = screen;
-                                }
+                            Ok(Some(new_screen)) => {
+                                let mut st = get_state!();
+                                st.targeted_screen = new_screen;
                             }
-                            Err(RecvTimeoutError::Timeout) => {
-                                info!("timed out waiting for screen_select response");
-                            }
-                            Err(RecvTimeoutError::Disconnected) => {
-                                info!("selector channel disconnected");
-                            }
+                            Ok(None) => {}
+                            Err(RecvTimeoutError::Timeout) => {}
+                            Err(RecvTimeoutError::Disconnected) => {}
                         }
                     }
                 }
+
                 match ev {
                     Event::Key(key_event) => {
-                        info!("handling key event: {:?}", key_event);
-                        let mut st = get_state!();
+                        let st = get_state!();
                         let mut sub = get_subscribers!();
-                        let screen_event = (key_event, st.targeted_screen);
-                        if screen_event.0.is_press() {
-                            // if the key was marked as pressed already, mark it as repeating
-                            let message = if st.pressed_keys.contains_key(&screen_event.0.code) {
-                                KeyMessage::Repeating(screen_event.0.code)
+                        let screen = st.targeted_screen;
+
+                        if key_event.is_press() {
+                            let msg = if st.pressed_keys.contains_key(&key_event.code) {
+                                KeyMessage::Repeating(key_event.code)
                             } else {
-                                KeyMessage::Pressed(screen_event.0.code)
+                                KeyMessage::Pressed(key_event.code)
                             };
-                            st.pressed_keys.insert(screen_event.0.code, screen_event);
+
+                            send_key_subscription_message(msg, &mut sub.key, screen);
+                        } else if key_event.is_release() {
                             send_key_subscription_message(
-                                message,
+                                KeyMessage::Released(key_event.code),
                                 &mut sub.key,
-                                st.targeted_screen,
-                            );
-                        } else if screen_event.0.is_release() {
-                            st.pressed_keys.remove(&screen_event.0.code);
-                            send_key_subscription_message(
-                                KeyMessage::Released(screen_event.0.code),
-                                &mut sub.key,
-                                st.targeted_screen,
+                                screen,
                             );
                         }
                     }
-                    Event::FocusGained => {
-                        let mut st = get_state!();
-                        if !st.is_terminal_focused {
-                            st.is_terminal_focused = true;
-                            send_subscription_message_to!(
-                                terminal_focus,
-                                SubscriptionMessage::TerminalWindowFocus(
-                                    TerminalFocus::HasBeenFocused
-                                )
-                            );
-                        }
-                    }
-                    Event::FocusLost => {
-                        let mut st = get_state!();
-                        if st.is_terminal_focused {
-                            st.is_terminal_focused = false;
-                            send_subscription_message_to!(
-                                terminal_focus,
-                                SubscriptionMessage::TerminalWindowFocus(
-                                    TerminalFocus::HasBeenUnfocused
-                                )
-                            );
-                        }
-                        // todo: send the release info to all the hooks, that are subscribed to key events
-                        st.pressed_keys = HashMap::new()
-                    }
+
                     Event::Mouse(mouse_event) => {
-                        fn set_mouse_button(
-                            state: &mut MouseState,
-                            button: &MouseButton,
-                            button_state: MouseButtonState,
-                        ) -> bool {
-                            match button {
-                                MouseButton::Left => {
-                                    let change = state.left_pressed != button_state;
-                                    if change {
-                                        state.left_pressed = button_state
-                                    }
-                                    change
-                                }
-                                MouseButton::Right => {
-                                    let change = state.right_pressed != button_state;
-                                    if change {
-                                        state.right_pressed = button_state
-                                    }
-                                    change
-                                }
-                                MouseButton::Middle => {
-                                    let change = state.middle_pressed != button_state;
-                                    if change {
-                                        state.middle_pressed = button_state
-                                    }
-                                    change
-                                }
-                            }
-                        }
-
-                        let mut st = get_state!();
+                        let st = get_state!();
                         let mut sub = get_subscribers!();
-                        let mut maybe_msg = None;
+                        let screen = st.targeted_screen;
 
-                        match mouse_event.kind {
-                            MouseEventKind::Down(b) => {
-                                if set_mouse_button(
-                                    &mut st.mouse_state,
-                                    &b,
-                                    MouseButtonState::Pressed,
-                                ) {
-                                    maybe_msg = Some(MouseMessage::Pressed(b));
-                                }
-                            }
-                            MouseEventKind::Up(b) => {
-                                if set_mouse_button(
-                                    &mut st.mouse_state,
-                                    &b,
-                                    MouseButtonState::Released,
-                                ) {
-                                    maybe_msg = Some(MouseMessage::Released(b));
-                                }
-                            }
-                            MouseEventKind::Drag(b) => {
-                                if set_mouse_button(
-                                    &mut st.mouse_state,
-                                    &b,
-                                    MouseButtonState::Dragging,
-                                ) {
-                                    // treat drag as pressed continuation
-                                    maybe_msg = Some(MouseMessage::Pressed(b));
-                                }
-                            }
+                        let msg = match mouse_event.kind {
+                            MouseEventKind::Down(b) => Some(MouseMessage::Pressed(b)),
+                            MouseEventKind::Up(b) => Some(MouseMessage::Released(b)),
                             MouseEventKind::Moved => {
-                                if (mouse_event.column, mouse_event.row) != st.mouse_state.mouse_pos
-                                {
-                                    maybe_msg = Some(MouseMessage::Move(
-                                        mouse_event.column,
-                                        mouse_event.row,
-                                    ));
-                                }
+                                Some(MouseMessage::Move(mouse_event.column, mouse_event.row))
                             }
-                            MouseEventKind::ScrollUp => {
-                                maybe_msg = Some(MouseMessage::ScrollUp);
-                            }
-                            MouseEventKind::ScrollDown => {
-                                maybe_msg = Some(MouseMessage::ScrollDown);
-                            }
-                            _ => {}
-                        }
+                            MouseEventKind::ScrollUp => Some(MouseMessage::ScrollUp),
+                            MouseEventKind::ScrollDown => Some(MouseMessage::ScrollDown),
+                            _ => None,
+                        };
 
-                        st.mouse_state.mouse_pos = (mouse_event.column, mouse_event.row);
-
-                        if let Some(msg) = maybe_msg {
-                            let screen = st.targeted_screen;
+                        if let Some(msg) = msg {
                             send_subscription_message_to_mouse(msg, &mut sub.mouse, screen);
                         }
                     }
+
+                    Event::FocusGained => {
+                        send_subscription_message_to!(
+                            terminal_focus,
+                            SubscriptionMessage::TerminalWindowFocus(TerminalFocus::HasBeenFocused)
+                        );
+                    }
+
+                    Event::FocusLost => {
+                        send_subscription_message_to!(
+                            terminal_focus,
+                            SubscriptionMessage::TerminalWindowFocus(
+                                TerminalFocus::HasBeenUnfocused
+                            )
+                        );
+                    }
+
                     Event::Paste(content) => {
                         let shared = Arc::new(content);
-
                         send_subscription_message_to_paste!(paste, shared);
                     }
+
                     Event::Resize(w, h) => {
-                        let mut st = get_state!();
-                        st.terminal_size = (w, h);
                         send_subscription_message_to!(resize, SubscriptionMessage::Resize(w, h));
                     }
                 }

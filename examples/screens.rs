@@ -1,4 +1,4 @@
-use std::{sync::mpsc, time::Duration};
+use std::sync::mpsc;
 
 use ascii_assets::TerminalChar;
 use common_stdx::Rect;
@@ -7,7 +7,6 @@ use log::info;
 use ltrender::{
     DrawObjectBuilder, Renderer, ScreenKey,
     display_screen::AreaRect,
-    draw_object_builder::VideoStreamDrawableBuilder,
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
@@ -21,10 +20,7 @@ use ltrender::{
         renderer::{Instant, RenderModeBehavior},
     },
     terminal_buffer::{
-        buffer_and_celldrawer::{
-            CrosstermCellDrawer, DefaultScreenBuffer,
-            standard_celldrawer::test_celldrawer::TerminalContentInformation,
-        },
+        buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
         standard_drawables::{rect_drawable::ScreenFitType, videostream_drawable::StreamFrame},
     },
 };
@@ -65,6 +61,11 @@ impl AdjustableScreens {
         M: RenderModeBehavior,
     {
         let current_size = r.get_terminal_size()?;
+        if current_size.0 <= self.screens.len() as u16
+            || current_size.1 <= self.screens[0].len() as u16
+        {
+            return Ok(());
+        }
         let screens_each_height = current_size.1 as usize / self.screens.len();
         for (i, screen_row) in &mut self.screens.iter().enumerate() {
             let screens_each_width = current_size.0 as usize / screen_row.len();
@@ -161,7 +162,7 @@ pub fn main() -> Result<(), AppError> {
     let callback_renderh: RenderHandle<Instant> = r.clone();
     hook.on_mouse_button_press(MouseButtons::Left, move |_| {
         if let TargetScreen::Screen(id) = callback_hook.current_selected_screen() {
-            let msg = format!("selected_screen: {}", id);
+            let msg = format!("selected_screen: {} ", id);
             info!("{}", msg);
             let mut data = Vec::new();
             for chr in msg.chars() {

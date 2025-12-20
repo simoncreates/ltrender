@@ -605,6 +605,7 @@ where
                         if let SubscriptionMessage::Mouse { msg, screen: _ } = m
                             && let MouseMessage::Pressed(_) = msg
                         {
+                            info!("received screen select message");
                             // find the highest screen at that position
                             let mut current_highest_screen = (usize::MAX, 0);
                             for (id, screen) in &self.screens {

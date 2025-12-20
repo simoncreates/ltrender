@@ -1,0 +1,41 @@
+warning: variable does not need to be mutable
+   --> src\input_handler\manager.rs:785:29
+    |
+785 |                         let mut st = get_state!();
+    |                             ----^^
+    |                             |
+    |                             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> src\input_handler\manager.rs:807:29
+    |
+807 |                         let mut st = get_state!();
+    |                             ----^^
+    |                             |
+    |                             help: remove this `mut`
+
+warning: `ltrender` (lib) generated 2 warnings (run `cargo fix --lib -p ltrender` to apply 2 suggestions)
+warning: unused import: `time::Duration`
+ --> examples\screens.rs:1:23
+  |
+1 | use std::{sync::mpsc, time::Duration};
+  |                       ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `draw_object_builder::VideoStreamDrawableBuilder` and `standard_celldrawer::test_celldrawer::TerminalContentInformation`
+  --> examples\screens.rs:10:5
+   |
+10 |     draw_object_builder::VideoStreamDrawableBuilder,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+26 |             standard_celldrawer::test_celldrawer::TerminalContentInformation,
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `ltrender` (example "screens") generated 2 warnings (run `cargo fix --example "screens" -p ltrender` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 0.22s
+     Running `target\release\examples\screens.exe`
+error: process didn't exit successfully: `target\release\examples\screens.exe` (exit code: 0xc000013a, STATUS_CONTROL_C_EXIT)
+^C
