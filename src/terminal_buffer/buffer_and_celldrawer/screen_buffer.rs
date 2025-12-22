@@ -4,7 +4,10 @@ use crate::{
     update_interval_handler::UpdateIntervalCreator,
 };
 use common_stdx::Rect;
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Debug,
+};
 
 use ascii_assets::Color;
 use ascii_assets::TerminalChar;
@@ -56,10 +59,15 @@ pub trait ScreenBuffer: ScreenBufferCore {
         } else {
             Point { x: 0, y: 0 }
         };
-        let opt_c = drawable.bounding_iv(sprites);
+        let opt_c: Option<UpdateIntervalCreator> = drawable.bounding_iv(sprites);
         // TODO: is this right??
-        _ = self.handle_none_interval_creator(opt_c, bounds.p1);
+        let update_intervals: HashMap<u16, Vec<UpdateInterval>> =
+            self.handle_none_interval_creator(opt_c, bounds.p1);
+
         let size = drawable.size(sprites)?;
+
+        let mut touched: HashSet<usize> = HashSet::new();
+
         for unshifted_bd in draws.iter_mut() {
             // using the top left corner of the screen, to shift the drawables position on screen
             let mut rd = BasicDraw {
@@ -94,11 +102,48 @@ pub trait ScreenBuffer: ScreenBufferCore {
             };
             let idx = self.idx_of(rd.pos);
             self.cell_info_mut()[idx].info.insert(obj_id, ci);
+
+            touched.insert(idx);
+        }
+
+        let (buf_cols, buf_rows) = self.size();
+        for (&row_u16, ivs) in &update_intervals {
+            if row_u16 >= buf_rows {
+                continue;
+            }
+            let row = row_u16 as i32;
+            for iv in ivs {
+                let (start_x, end_x) = iv.interval;
+
+                if end_x <= start_x {
+                    continue;
+                }
+
+                let end_x = end_x.min(buf_cols as usize);
+
+                for x in start_x..end_x {
+                    let x_i32 = x as i32;
+                    if x_i32 < 0 {
+                        continue;
+                    }
+                    let pos = Point { x: x_i32, y: row };
+
+                    // skip if out of total bounds
+                    if pos.x as u16 >= buf_cols || pos.y as u16 >= buf_rows {
+                        continue;
+                    }
+
+                    let idx = self.idx_of(pos);
+
+                    if !touched.contains(&idx) {
+                        self.cell_info_mut()[idx].info.remove(&obj_id);
+                    }
+                }
+            }
         }
 
         Ok(())
     }
-
     /// Remove an object from the buffer.
     fn remove_from_buffer(
         &mut self,

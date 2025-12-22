@@ -162,7 +162,7 @@ pub fn main() -> Result<(), AppError> {
     let callback_renderh: RenderHandle<Instant> = r.clone();
     hook.on_mouse_button_press(MouseButtons::Left, move |_| {
         if let TargetScreen::Screen(id) = callback_hook.current_selected_screen() {
-            let msg = format!("selected_screen: {} ", id);
+            let msg = format!("selected_screen: {}", id);
             info!("{}", msg);
             let mut data = Vec::new();
             for chr in msg.chars() {
