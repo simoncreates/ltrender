@@ -1,5 +1,4 @@
 use crossterm::event::{KeyCode, MouseButton};
-use log::info;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -211,15 +210,11 @@ impl EventHook {
         Ok(())
     }
 
-    /// todo: check if works for mouse?
     pub fn is_pressed(&self, button: InputButton) -> bool {
         let st = self
             .input_manager_state
             .lock()
             .unwrap_or_else(|p| p.into_inner());
-        if !st.pressed_keys.is_empty() {
-            info!("checking is pressed with: {:?}", st.pressed_keys)
-        }
         match button {
             InputButton::Key(key) => st.pressed_keys.contains_key(&key),
             InputButton::Mouse(btn) => match btn {
