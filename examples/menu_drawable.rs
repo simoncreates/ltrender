@@ -2,9 +2,9 @@ use ascii_assets::{Color, TerminalChar};
 use common_stdx::Rect;
 use crossterm::{event::MouseButton, terminal::size};
 use ltrender::{
-    DrawObject, DrawObjectBuilder, Renderer,
+    DrawObject, Renderer,
     display_screen::AreaRect,
-    draw_object_builder::RectDrawableBuilder,
+    draw_object_builder::{CircleDrawableBuilder, RectDrawableBuilder},
     drawable_register::ObjectLifetime,
     error::AppError,
     init_logger, init_terminal,
@@ -14,7 +14,7 @@ use ltrender::{
         RectDrawable,
         buffer_and_celldrawer::{CrosstermCellDrawer, DefaultScreenBuffer},
         standard_drawables::{
-            rect_drawable::{BorderStyle, ScreenFitType},
+            rect_drawable::BorderStyle,
             select_menu_drawable::{SelectMenuDrawable, SelectMenuFitting},
         },
     },
@@ -22,7 +22,7 @@ use ltrender::{
 
 fn main() -> Result<(), AppError> {
     init_terminal!();
-    init_logger("./menu_drawable_example.log");
+    init_logger("./menu_drawable_example.log")?;
     let (cols, rows) = size()?;
     let renderer = Renderer::<DefaultScreenBuffer<CrosstermCellDrawer>, Instant>::create_renderer(
         (cols, rows),
@@ -32,12 +32,20 @@ fn main() -> Result<(), AppError> {
 
     let hook = ev_handler.create_hook();
 
-    let inside_rect = RectDrawableBuilder::new()
+    let inside_rect1 = RectDrawableBuilder::new()
         .border_style(BorderStyle::Basic)
         .fill_style(' ')
         .rect(Rect::from_coords(0, 0, 3, 3))
         .build()?;
-
+    let inside_rect2 = RectDrawableBuilder::new()
+        .border_style(BorderStyle::AllRound(TerminalChar::from_char('~')))
+        .fill_style(' ')
+        .rect(Rect::from_coords(0, 0, 3, 3))
+        .build()?;
+    let inside_circle = CircleDrawableBuilder::new()
+        .border_style(TerminalChar::from_char('O').set_bg(Color::Maroon))
+        .radius(4)
+        .build()?;
     let border_rect = RectDrawable {
         rect: Rect::from_coords(0, 0, 0, 0),
         border_thickness: 1,
@@ -49,11 +57,13 @@ fn main() -> Result<(), AppError> {
     let menu_screen = r.create_screen(AreaRect::FullScreen, 0)?;
 
     let menu_drawable = SelectMenuDrawable::new(
-        vec![inside_rect],
+        vec![inside_rect1, inside_rect2, inside_circle],
         border_rect,
         SelectMenuFitting::FitToContents,
+        menu_screen,
         hook,
-    );
+        r.clone(),
+    )?;
 
     let drawable_id = r.register_drawable(
         menu_screen,
@@ -68,7 +78,7 @@ fn main() -> Result<(), AppError> {
     r.render_drawable(drawable_id)?;
     let hook = ev_handler.create_hook();
     loop {
-        if hook.is_pressed(InputButton::Mouse(MouseButton::Left)) {
+        if hook.is_pressed(InputButton::Mouse(MouseButton::Right)) {
             break;
         }
     }

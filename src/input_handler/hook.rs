@@ -261,18 +261,9 @@ impl EventHook {
         match button {
             InputButton::Key(key) => st.pressed_keys.contains_key(&key),
             InputButton::Mouse(btn) => match btn {
-                MouseButton::Left => {
-                    st.mouse_state.left_pressed == MouseButtonState::Pressed
-                        || st.mouse_state.left_pressed == MouseButtonState::Dragging
-                }
-                MouseButton::Right => {
-                    st.mouse_state.right_pressed == MouseButtonState::Pressed
-                        || st.mouse_state.right_pressed == MouseButtonState::Dragging
-                }
-                MouseButton::Middle => {
-                    st.mouse_state.middle_pressed == MouseButtonState::Pressed
-                        || st.mouse_state.middle_pressed == MouseButtonState::Dragging
-                }
+                MouseButton::Left => st.mouse_state.left_pressed == MouseButtonState::Pressed,
+                MouseButton::Right => st.mouse_state.right_pressed == MouseButtonState::Pressed,
+                MouseButton::Middle => st.mouse_state.middle_pressed == MouseButtonState::Pressed,
             },
         }
     }

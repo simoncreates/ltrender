@@ -47,6 +47,13 @@ pub trait RenderModeBehavior {
     ) -> Result<(), DrawError>
     where
         Self: Sized;
+
+    fn render_screen<B: ScreenBuffer>(
+        renderer: &mut Renderer<B, Self>,
+        screen_id: ScreenKey,
+    ) -> Result<(), DrawError>
+    where
+        Self: Sized;
 }
 
 impl RenderModeBehavior for Instant {
@@ -80,7 +87,6 @@ impl RenderModeBehavior for Instant {
     where
         Self: Sized,
     {
-        info!("forcing a refresh");
         if let Some(s) = renderer.screens.get_mut(&object_key.screen_id) {
             s.render_all(
                 &mut renderer.screen_buffer,
@@ -89,6 +95,28 @@ impl RenderModeBehavior for Instant {
             )?;
         };
         renderer.forced_refresh()?;
+        Ok(())
+    }
+    fn render_screen<B: ScreenBuffer>(
+        renderer: &mut Renderer<B, Self>,
+        screen_id: ScreenKey,
+    ) -> Result<(), DrawError>
+    where
+        Self: Sized,
+    {
+        info!("rendering full screen");
+        if let Some(s) = renderer.screens.get_mut(&screen_id) {
+            s.remove_all(
+                &mut renderer.screen_buffer,
+                &mut renderer.obj_library,
+                &renderer.sprites,
+            )?;
+            s.render_all(
+                &mut renderer.screen_buffer,
+                &mut renderer.obj_library,
+                &renderer.sprites,
+            )?;
+        }
         Ok(())
     }
 }
@@ -123,6 +151,16 @@ impl RenderModeBehavior for Buffered {
             )?;
         }
         renderer.forced_refresh()?;
+        Ok(())
+    }
+    // noop, since screens are gonna get updated during frame drawing anyways
+    fn render_screen<B: ScreenBuffer>(
+        _renderer: &mut Renderer<B, Self>,
+        _screen_id: ScreenKey,
+    ) -> Result<(), DrawError>
+    where
+        Self: Sized,
+    {
         Ok(())
     }
 }
@@ -400,6 +438,11 @@ where
         let sprite_id = self.sprites.add(SpriteEntry { info: video });
 
         Ok(sprite_id)
+    }
+
+    pub fn render_screen(&mut self, screen_id: ScreenKey) -> Result<(), AppError> {
+        M::render_screen(self, screen_id)?;
+        Ok(())
     }
 
     /// Render a single drawable object.

@@ -54,6 +54,10 @@ pub enum RenderCommand {
         key: DrawObjectKey,
         resp: mpsc::Sender<Result<(), AppError>>,
     },
+    RenderScreen {
+        screen_id: ScreenKey,
+        resp: mpsc::Sender<Result<(), AppError>>,
+    },
     HandleResize {
         new_size: (u16, u16),
         resp: mpsc::Sender<Result<(), AppError>>,
@@ -188,6 +192,10 @@ where
 
     pub fn render_drawable(&self, key: DrawObjectKey) -> Result<(), AppError> {
         self.send_and_wait(|resp| RenderCommand::RenderDrawable { key, resp })
+    }
+
+    pub fn render_screen(&self, screen_id: ScreenKey) -> Result<(), AppError> {
+        self.send_and_wait(|resp| RenderCommand::RenderScreen { screen_id, resp })
     }
 
     pub fn handle_resize(&self, new_size: (u16, u16)) -> Result<(), AppError> {

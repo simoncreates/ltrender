@@ -16,8 +16,6 @@ impl BasicDrawCreator {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Create a `BasicDrawCreator` with preallocated capacity.
     pub fn new_with_capacity(cap: usize) -> Self {
         Self {
             draws: HashMap::with_capacity(cap),
@@ -42,7 +40,6 @@ impl BasicDrawCreator {
     ) {
         let p1 = p1.into();
         let p2 = p2.into();
-        info!("draw_line from {:?} to {:?} with style: {:?}", p1, p2, chr);
         let mut x0 = p1.x;
         let mut y0 = p1.y;
         let x1 = p2.x;

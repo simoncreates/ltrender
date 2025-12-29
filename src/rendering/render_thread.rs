@@ -85,12 +85,15 @@ where
                         let _ = resp.send(res);
                     }
                     RenderCommand::RegisterSpriteFromSource { path, resp } => {
-                        // note: this returns AppError
                         let res = renderer.register_sprite_from_source(&path);
                         let _ = resp.send(res);
                     }
                     RenderCommand::RenderDrawable { key, resp } => {
                         let res = renderer.render_drawable(key).map_err(Into::into);
+                        let _ = resp.send(res);
+                    }
+                    RenderCommand::RenderScreen { screen_id, resp } => {
+                        let res = renderer.render_screen(screen_id);
                         let _ = resp.send(res);
                     }
                     RenderCommand::HandleResize { new_size, resp } => {

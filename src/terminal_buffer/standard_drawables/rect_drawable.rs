@@ -99,10 +99,6 @@ impl Drawable for RectDrawable {
         Some(self)
     }
     fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
-        info!(
-            "drawing rect drawable with rect: {:?}, border_style: {:?} and border thickness: {}",
-            self.rect, self.border_style, self.border_thickness
-        );
         if self.rect.p1.x > self.rect.p2.x || self.rect.p1.y > self.rect.p2.y {
             return Ok(BasicDrawCreator::new());
         }

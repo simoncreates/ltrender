@@ -9,6 +9,7 @@ pub type ScreenKey = usize;
 
 pub mod area_rect;
 pub use area_rect::{AreaPoint, AreaRect};
+use log::info;
 
 #[derive(Debug)]
 pub struct Screen {
@@ -201,6 +202,7 @@ impl Screen {
     {
         let obj_ids: Vec<_> = self.draw_objects.to_vec();
         for obj_id in obj_ids {
+            info!("rendering drawable from screen with id: {}", obj_id);
             self.render_drawable(obj_id, screen_buffer, obj_library, sprites)?;
         }
         Ok(())
