@@ -30,15 +30,34 @@ macro_rules! init_terminal {
 
 pub fn initial_terminal_state() -> Result<()> {
     let mut stdout = stdout();
+
     enable_raw_mode()?;
-    execute!(stdout, EnterAlternateScreen, Clear(ClearType::All), Hide)?;
-    execute!(stdout, EnableMouseCapture)?;
+
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        Clear(ClearType::All),
+        Hide,
+        EnableMouseCapture,
+    )?;
+
+    #[cfg(unix)]
+    execute!(
+        stdout,
+        PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+        )
+    )?;
+
     Ok(())
 }
-
 pub fn restore_terminal() -> Result<()> {
     println!("restoring terminal");
     let mut stdout = stdout();
+    #[cfg(unix)]
+    execute!(stdout, PopKeyboardEnhancementFlags)?;
     execute!(
         stdout,
         Clear(ClearType::All),

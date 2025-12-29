@@ -145,7 +145,7 @@ pub fn main() -> Result<(), AppError> {
             })?
             .add_lifetime(ObjectLifetime::ExplicitRemove)
             .screen(screen)
-            .build(&mut r)?;
+            .build_and_register(&mut r)?;
         info!("manually rendering drawable: {:?}", d_key);
         r.render_drawable(d_key)?;
     }
@@ -157,7 +157,7 @@ pub fn main() -> Result<(), AppError> {
         .videostream_drawable(|b| b.position((0, 0)).recv(recv))?
         .add_lifetime(ObjectLifetime::ExplicitRemove)
         .screen(0)
-        .build(&mut r)?;
+        .build_and_register(&mut r)?;
     let callback_hook = ev_handler.create_hook();
     let callback_renderh: RenderHandle<Instant> = r.clone();
     hook.on_mouse_button_press(MouseButtons::Left, move |_| {

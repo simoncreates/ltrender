@@ -19,6 +19,10 @@ pub enum RenderCommand {
         new_area: AreaRect,
         resp: mpsc::Sender<Result<(), AppError>>,
     },
+    FitScreenAreaToContents {
+        screen_id: ScreenKey,
+        resp: mpsc::Sender<Result<(), AppError>>,
+    },
     ChangeScreenLayer {
         screen_id: ScreenKey,
         new_layer: usize,
@@ -135,6 +139,10 @@ where
             new_area,
             resp,
         })
+    }
+
+    pub fn fit_screen_area_to_contents(&self, screen_id: ScreenKey) -> Result<(), AppError> {
+        self.send_and_wait(|resp| RenderCommand::FitScreenAreaToContents { screen_id, resp })
     }
 
     pub fn change_screen_layer(

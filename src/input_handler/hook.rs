@@ -1,7 +1,8 @@
-use crossterm::event::{KeyCode, MouseButton};
+use crossterm::event::{KeyCode, KeyModifiers, MouseButton};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    fmt::Debug,
+    sync::{Arc, Mutex, mpsc::SendError},
     thread::{self},
     time::Duration,
 };
@@ -22,7 +23,6 @@ pub enum InputButton {
     Mouse(MouseButton),
     Key(KeyCode),
 }
-
 type Callback = Arc<Mutex<Box<dyn FnMut(SubscriptionMessage) + Send>>>;
 type SubscriptionDate = (SubscriptionID, CbReceiver<SubscriptionMessage>);
 
@@ -32,6 +32,40 @@ pub struct EventHook {
     callbacks: Arc<Mutex<HashMap<SubscriptionID, Callback>>>,
     receivers: Arc<Mutex<Vec<SubscriptionDate>>>,
     dispatcher: Option<thread::JoinHandle<()>>,
+}
+
+impl Clone for EventHook {
+    fn clone(&self) -> Self {
+        EventHook {
+            sender: self.sender.clone(),
+            input_manager_state: self.input_manager_state.clone(),
+            callbacks: Arc::new(Mutex::new(HashMap::new())),
+            receivers: Arc::new(Mutex::new(Vec::new())),
+            dispatcher: None,
+        }
+    }
+}
+
+impl Debug for EventHook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "sender: {:?}", self.sender)?;
+        writeln!(f, "input_manager_state: {:?}", self.input_manager_state)?;
+
+        write!(f, "callbacks: ")?;
+        let callbacks = self.callbacks.lock();
+        if let Ok(callbacks) = callbacks {
+            for callback in callbacks.clone().into_iter() {
+                write!(f, "sub id: {}", callback.0)?
+            }
+        } else {
+            write!(f, "failed to lock callbacks")?
+        }
+
+        writeln!(f, "receivers: {:?}", self.receivers)?;
+        writeln!(f, "dispatcher: {:?}", self.dispatcher)?;
+
+        Ok(())
+    }
 }
 
 impl EventHook {
@@ -160,6 +194,15 @@ impl EventHook {
         }
     }
 
+    pub fn set_selected_screen(
+        &self,
+        selected_screen: TargetScreen,
+    ) -> Result<(), SendError<EventManagerCommand>> {
+        self.sender
+            .send(EventManagerCommand::SetTargetedScreen(selected_screen))?;
+        Ok(())
+    }
+
     pub fn on_key_press<F>(
         &mut self,
         key: KeyCode,
@@ -217,6 +260,36 @@ impl EventHook {
             .unwrap_or_else(|p| p.into_inner());
         match button {
             InputButton::Key(key) => st.pressed_keys.contains_key(&key),
+            InputButton::Mouse(btn) => match btn {
+                MouseButton::Left => {
+                    st.mouse_state.left_pressed == MouseButtonState::Pressed
+                        || st.mouse_state.left_pressed == MouseButtonState::Dragging
+                }
+                MouseButton::Right => {
+                    st.mouse_state.right_pressed == MouseButtonState::Pressed
+                        || st.mouse_state.right_pressed == MouseButtonState::Dragging
+                }
+                MouseButton::Middle => {
+                    st.mouse_state.middle_pressed == MouseButtonState::Pressed
+                        || st.mouse_state.middle_pressed == MouseButtonState::Dragging
+                }
+            },
+        }
+    }
+
+    pub fn is_pressed_with_modifier(&self, button: InputButton, modifier: KeyModifiers) -> bool {
+        let st = self
+            .input_manager_state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        match button {
+            InputButton::Key(key) => {
+                if let Some((ev, _)) = st.pressed_keys.get(&key) {
+                    ev.modifiers.contains(modifier)
+                } else {
+                    false
+                }
+            }
             InputButton::Mouse(btn) => match btn {
                 MouseButton::Left => {
                     st.mouse_state.left_pressed == MouseButtonState::Pressed

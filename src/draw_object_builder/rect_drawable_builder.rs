@@ -53,7 +53,7 @@ impl RectDrawableBuilder {
             rect: self
                 .rect
                 .ok_or(DrawObjectBuilderError::FailedToBuildRectObject())?,
-            border_thickness: self.border_thickness.unwrap_or(0),
+            border_thickness: self.border_thickness.unwrap_or(1),
             border_style: self.border_style.unwrap_or(BorderStyle::Basic),
             fill_style: self.fill_style,
             screen_fit: self.screen_fit,

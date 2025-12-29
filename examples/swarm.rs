@@ -208,7 +208,7 @@ pub fn main() -> Result<(), AppError> {
         .drawable(video_drawable)
         .shader(Grayscale)
         .add_lifetime(ObjectLifetime::ExplicitRemove)
-        .build(&mut r)?;
+        .build_and_register(&mut r)?;
     spawn_soft_wave(
         tx,
         RenderHandle::<Buffered>::clone(&r),
@@ -234,7 +234,7 @@ pub fn main() -> Result<(), AppError> {
             .screen(screen)
             .drawable(spr_draw)
             .add_lifetime(ObjectLifetime::ExplicitRemove)
-            .build(&mut r)?;
+            .build_and_register(&mut r)?;
     }
     let rect_id: DrawObjectKey = DrawObjectBuilder::default()
         .layer(100)
@@ -253,7 +253,7 @@ pub fn main() -> Result<(), AppError> {
             .rect(Rect::from_coords(20, 20, 40, 40))
         })?
         .add_lifetime(ObjectLifetime::ExplicitRemove)
-        .build(&mut r)?;
+        .build_and_register(&mut r)?;
 
     // HUD text (toggle with 'h').
     let mut show_hud = true;
@@ -279,7 +279,7 @@ pub fn main() -> Result<(), AppError> {
         .screen(screen)
         .drawable(hud_drawable)
         .add_lifetime(ObjectLifetime::ExplicitRemove)
-        .build(&mut r)?;
+        .build_and_register(&mut r)?;
 
     // Seed agents.
     let mut agents = seeded_swarm(&mut r, screen, 140, cols, rows);

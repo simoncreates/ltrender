@@ -109,7 +109,7 @@ fn video_render_test() -> Result<(), AppError> {
                 .screen(screen)
                 .drawable(spr_draw)
                 .add_lifetime(ObjectLifetime::ExplicitRemove)
-                .build(&mut r)?
+                .build_and_register(&mut r)?
         } else {
             panic!("failed to register sprite from source")
         };
@@ -174,7 +174,7 @@ fn video_render_test() -> Result<(), AppError> {
                 .fill_style(TerminalChar::from_char(' '))
         })?
         .screen(rect_screen)
-        .build(&mut r)?;
+        .build_and_register(&mut r)?;
 
     // now the video should still be visible at 1,1
     test_if_video_exist(Point { x: 1, y: 1 }, ref_frame.clone(), sprite_size);

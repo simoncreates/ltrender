@@ -1,8 +1,10 @@
+use std::i32;
+
 use crate::{
     DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
     terminal_buffer::CellDrawer,
 };
-use common_stdx::Rect;
+use common_stdx::{Point, Rect};
 pub type ScreenKey = usize;
 
 pub mod area_rect;
@@ -32,6 +34,51 @@ impl Screen {
         self.area = new_area;
     }
 
+    /// sets the screens area to fit its contents
+    pub fn change_screen_area_contents(
+        &mut self,
+        obj_library: &mut DrawObjectLibrary,
+        sprites: &SpriteRegistry,
+    ) {
+        let mut combined_bbox: Option<Rect<i32>> = None;
+
+        for object_id in &self.draw_objects {
+            let key = DrawObjectKey {
+                screen_id: self.id,
+                object_id: *object_id,
+            };
+
+            let obj = match obj_library.get_mut(&key) {
+                Some(obj) => obj,
+                None => continue,
+            };
+
+            let bdc = match obj.drawable.draw(sprites) {
+                Ok(bdc) => bdc,
+                Err(_) => continue,
+            };
+
+            let bbox = bdc.get_bounding_box().normalized();
+
+            combined_bbox = Some(match combined_bbox {
+                None => bbox,
+                Some(acc) => Rect {
+                    p1: Point {
+                        x: acc.p1.x.min(bbox.p1.x),
+                        y: acc.p1.y.min(bbox.p1.y),
+                    },
+                    p2: Point {
+                        x: acc.p2.x.max(bbox.p2.x),
+                        y: acc.p2.y.max(bbox.p2.y),
+                    },
+                },
+            });
+        }
+
+        if let Some(bbox) = combined_bbox {
+            self.area = AreaRect::FromPoints(AreaPoint::Point(bbox.p1), AreaPoint::Point(bbox.p2))
+        }
+    }
     pub fn change_screen_layer(&mut self, new_layer: usize) {
         self.layer = new_layer;
     }

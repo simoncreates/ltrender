@@ -1,6 +1,6 @@
 use crate::{ScreenKey, input_handler::hook::EventHook};
 use crossbeam_channel::Sender as CbSender;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, MouseButton, MouseEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use std::{
     collections::HashMap,
     fmt::{self, Formatter},
@@ -31,10 +31,21 @@ pub enum MouseMessage {
 }
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub enum KeyMessage {
-    Pressed(KeyCode),
-    Released(KeyCode),
-    Repeating(KeyCode),
+    Pressed(KeyCode, KeyModifiers),
+    Released(KeyCode, KeyModifiers),
+    Repeating(KeyCode, KeyModifiers),
 }
+
+impl KeyMessage {
+    pub fn modifiers(&self) -> KeyModifiers {
+        match self {
+            KeyMessage::Pressed(_, mods) => *mods,
+            KeyMessage::Repeating(_, mods) => *mods,
+            KeyMessage::Released(_, mods) => *mods,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
 pub enum TerminalFocus {
     HasBeenFocused,
@@ -118,9 +129,9 @@ pub enum MouseSubscriptionTypes {
     Scrolls,
     /// movement events
     Moves,
-    /// any action for a specific button (left/right/middle)
+    /// any action for a specific button
     ButtonAny(MouseButtons),
-    /// specific action for a specific button (e.g. Left + Pressed)
+    /// specific action for a specific button
     ButtonAction(MouseButtons, MouseAction),
 }
 
@@ -143,21 +154,12 @@ pub enum MouseButtons {
 #[derive(Debug, Clone)]
 pub enum EventManagerCommand {
     Subscribe(SubscriptionType, CbSender<SubscriptionMessage>),
-    // todo: add unsubscribing (canceling subscription?)
+    SetTargetedScreen(TargetScreen),
+    // todo: add unsubscribing
     // Unsubscribe(SubscriptionID)
 }
 
-impl fmt::Display for EventManagerCommand {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            EventManagerCommand::Subscribe(sub_type, _) => {
-                write!(f, "subscription type: {:?}", sub_type)
-            }
-        }
-    }
-}
-
-// ______ here are all the enums, defining the state of the InputManager _____
+// ____ all the enums, defining the state of the InputManager _____
 
 /// defines, what screen inside of the rendere is targeted
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
@@ -168,6 +170,17 @@ pub enum TargetScreen {
     None,
     /// all screens will be targeted
     Global,
+}
+
+impl TargetScreen {
+    /// returns true, if the given screen id is being targeted
+    pub fn targeting(&self, screen_id: ScreenKey) -> bool {
+        match self {
+            TargetScreen::Global => true,
+            TargetScreen::None => true,
+            TargetScreen::Screen(s) => s == &screen_id,
+        }
+    }
 }
 impl fmt::Display for TargetScreen {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -185,7 +198,7 @@ impl fmt::Display for TargetScreen {
     }
 }
 
-/// defines all the states a mouse butten can be in
+/// defines all the states a mouse button can be in
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default, Hash)]
 pub enum MouseButtonState {
     Pressed,
@@ -340,7 +353,7 @@ impl CrosstermEventManager {
                         }
                     }
                     for (id, e) in error_ids {
-                        info!(
+                        warn!(
                             "failed to send SubscriptionMessage to subscriber with id: {} and err: {}",
                             id, e
                         );
@@ -363,7 +376,8 @@ impl CrosstermEventManager {
                     let should_send = match sub_type {
                         KeySubscriptionTypes::All => true,
                         KeySubscriptionTypes::Specific(expected_code) => match message {
-                            KeyMessage::Pressed(code) => {
+                            // todo: ignoring modifiers for now
+                            KeyMessage::Pressed(code, _) => {
                                 if let KeyAction::Pressed = expected_key_action
                                     && code == *expected_code
                                 {
@@ -372,7 +386,7 @@ impl CrosstermEventManager {
                                     false
                                 }
                             }
-                            KeyMessage::Released(code) => {
+                            KeyMessage::Released(code, _) => {
                                 if let KeyAction::Released = expected_key_action
                                     && code == *expected_code
                                 {
@@ -381,7 +395,7 @@ impl CrosstermEventManager {
                                     false
                                 }
                             }
-                            KeyMessage::Repeating(code) => {
+                            KeyMessage::Repeating(code, _) => {
                                 if let KeyAction::Repeated = expected_key_action
                                     && code == *expected_code
                                 {
@@ -407,7 +421,7 @@ impl CrosstermEventManager {
             }
 
             for (id, e) in error_ids {
-                info!(
+                warn!(
                     "failed to send SubscriptionMessage to subscriber with id: {} and err: {}",
                     id, e
                 );
@@ -526,6 +540,7 @@ impl CrosstermEventManager {
         fn create_subscription_message_from_ev(
             ev: &mut Event,
             screen: TargetScreen,
+            is_repeating: bool,
         ) -> SubscriptionMessage {
             match ev {
                 Event::FocusGained => {
@@ -535,12 +550,12 @@ impl CrosstermEventManager {
                     SubscriptionMessage::TerminalWindowFocus(TerminalFocus::HasBeenUnfocused)
                 }
                 Event::Key(k) => {
-                    let msg = if k.is_press() {
-                        KeyMessage::Pressed(k.code)
-                    } else if k.is_release() {
-                        KeyMessage::Released(k.code)
+                    let msg = if is_repeating {
+                        KeyMessage::Repeating(k.code, k.modifiers)
+                    } else if k.is_press() {
+                        KeyMessage::Pressed(k.code, k.modifiers)
                     } else {
-                        KeyMessage::Repeating(k.code)
+                        KeyMessage::Released(k.code, k.modifiers)
                     };
                     SubscriptionMessage::Key { msg, screen }
                 }
@@ -612,8 +627,6 @@ impl CrosstermEventManager {
         let handle = thread::spawn(move || {
             while !shutdown.load(Ordering::Relaxed) {
                 while let Ok(command) = global_recv.try_recv() {
-                    info!("manager received command: {:?}", &command);
-
                     match command {
                         EventManagerCommand::Subscribe(subscription_type, sender) => {
                             let idx = subscription_idx.fetch_add(1, Ordering::SeqCst);
@@ -652,10 +665,14 @@ impl CrosstermEventManager {
                                 }
                             }
                         }
+                        EventManagerCommand::SetTargetedScreen(screen) => {
+                            let mut state = get_state!();
+                            state.targeted_screen = screen;
+                        }
                     }
                 }
 
-                if !event::poll(Duration::from_millis(10)).unwrap_or(false) {
+                if !event::poll(Duration::from_millis(5)).unwrap_or(false) {
                     continue;
                 }
 
@@ -740,6 +757,7 @@ impl CrosstermEventManager {
                             st.terminal_size = (*w, *h);
                         }
 
+                        // handle pasting
                         _ => {}
                     }
                 }
@@ -752,25 +770,28 @@ impl CrosstermEventManager {
                         st.targeted_screen
                     };
 
-                    let selector_msg =
-                        create_subscription_message_from_ev(&mut ev, targeted_screen);
+                    let selector_msg = create_subscription_message_from_ev(
+                        &mut ev,
+                        targeted_screen,
+                        key_is_repeating,
+                    );
 
                     if select_arc.1.send(selector_msg).is_err() {
                         return;
                     }
 
-                    let max_wait = max_screen_selector_reponse_wait_time;
-
                     if let Ok(recv) = select_arc.0.lock() {
                         use std::sync::mpsc::RecvTimeoutError;
 
-                        match recv.recv_timeout(max_wait) {
+                        match recv.recv_timeout(max_screen_selector_reponse_wait_time) {
                             Ok(Some(new_screen)) => {
                                 let mut st = get_state!();
                                 st.targeted_screen = new_screen;
                             }
                             Ok(None) => {}
-                            Err(RecvTimeoutError::Timeout) => {}
+                            Err(RecvTimeoutError::Timeout) => {
+                                info!("timeouted ")
+                            }
                             Err(RecvTimeoutError::Disconnected) => {}
                         }
                     }
@@ -782,17 +803,16 @@ impl CrosstermEventManager {
                         let mut sub = get_subscribers!();
                         let screen = st.targeted_screen;
 
-                        if key_event.is_press() {
-                            let msg = if key_is_repeating {
-                                KeyMessage::Repeating(key_event.code)
-                            } else {
-                                KeyMessage::Pressed(key_event.code)
-                            };
+                        if key_is_repeating {
+                            let msg = KeyMessage::Repeating(key_event.code, key_event.modifiers);
+                            send_key_subscription_message(msg, &mut sub.key, screen);
+                        } else if key_event.is_press() {
+                            let msg = KeyMessage::Pressed(key_event.code, key_event.modifiers);
 
                             send_key_subscription_message(msg, &mut sub.key, screen);
                         } else if key_event.is_release() {
                             send_key_subscription_message(
-                                KeyMessage::Released(key_event.code),
+                                KeyMessage::Released(key_event.code, key_event.modifiers),
                                 &mut sub.key,
                                 screen,
                             );

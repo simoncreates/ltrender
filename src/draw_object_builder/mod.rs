@@ -99,17 +99,22 @@ impl DrawObjectBuilder {
     allow_drawable_building!(RectDrawableBuilder, rect_drawable);
     allow_drawable_building!(VideoStreamDrawableBuilder, videostream_drawable);
 
-    pub fn build<M>(
+    pub fn build_and_register<M>(
         &mut self,
         render_handle: &mut RenderHandle<M>,
     ) -> Result<DrawObjectKey, AppError>
     where
         M: RenderModeBehavior,
     {
-        let layer = self.layer.ok_or(DrawObjectBuilderError::NoLayerAdded())?;
         let screen_id = self
             .screen_id
             .ok_or(DrawObjectBuilderError::NoScreenAdded())?;
+
+        render_handle.register_drawable(screen_id, self.build()?)
+    }
+
+    pub fn build(&mut self) -> Result<DrawObject, AppError> {
+        let layer = self.layer.ok_or(DrawObjectBuilderError::NoLayerAdded())?;
 
         let drawable = self
             .drawable
@@ -117,16 +122,12 @@ impl DrawObjectBuilder {
             .ok_or(DrawObjectBuilderError::NoDrawableAdded())?;
 
         let lifetime = self.lt.ok_or(DrawObjectBuilderError::NoLifetimeAdded())?;
-
-        render_handle.register_drawable(
-            screen_id,
-            DrawObject {
-                lifetime,
-                layer,
-                drawable,
-                shaders: self.shaders.clone(),
-                creation_time: Instant::now(),
-            },
-        )
+        Ok(DrawObject {
+            lifetime,
+            layer,
+            drawable,
+            shaders: self.shaders.clone(),
+            creation_time: Instant::now(),
+        })
     }
 }

@@ -33,7 +33,10 @@ pub enum AppError {
 pub enum EventCommunicationError {
     #[error("did not receive a subscription id from the EventManager after subscribing")]
     DidNotReceiveIDResponse,
-    #[error("failed to send a command message to the Event Manager. Message: {message}")]
+    #[error(
+        "failed to send a command message to the Event Manager. Message: {:?}",
+        message
+    )]
     FailedToSendEventManagerCommandMessage { message: EventManagerCommand },
     #[error("expected a SubscriptionMessage of type: {expected_type}, got: {received_type}")]
     ReceiveUnexpectedResponse {
@@ -81,6 +84,9 @@ pub enum DrawError {
     // Channel errors
     #[error("Failed to send reply on channel: {0}")]
     ChannelSendError(String),
+
+    #[error("Failed drawing: {0}")]
+    FailedDrawing(String),
 }
 
 #[derive(Debug, Error)]

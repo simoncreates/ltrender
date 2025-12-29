@@ -5,6 +5,7 @@ use crate::{
 };
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
+use log::info;
 
 #[derive(Clone, Debug)]
 pub enum BorderStyle {
@@ -82,7 +83,7 @@ impl RectDrawable {
                         BorderStyleCustomFields::Bottom => bottom,
                     }
                 } else {
-                    panic!("this is an internal function error, it should be impossible to reach")
+                    panic!("internal function error, should be impossible to reach")
                 }
             }
         }
@@ -98,6 +99,10 @@ impl Drawable for RectDrawable {
         Some(self)
     }
     fn draw(&mut self, _sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError> {
+        info!(
+            "drawing rect drawable with rect: {:?}, border_style: {:?} and border thickness: {}",
+            self.rect, self.border_style, self.border_thickness
+        );
         if self.rect.p1.x > self.rect.p2.x || self.rect.p1.y > self.rect.p2.y {
             return Ok(BasicDrawCreator::new());
         }
@@ -123,26 +128,33 @@ impl Drawable for RectDrawable {
             } else {
                 let left_chr = self.get_borderchar(Some(BorderStyleCustomFields::Left));
                 let right_chr = self.get_borderchar(Some(BorderStyleCustomFields::Right));
+
+                let bt = self.border_thickness as i32;
+
                 // left border
-                out.draw_line(
-                    (rect.p1.x, y),
-                    (rect.p1.x + self.border_thickness as i32, y),
-                    left_chr,
-                );
+                if bt > 0 {
+                    let left_end = rect.p1.x + bt - 1;
+                    if left_end >= rect.p1.x {
+                        out.draw_line((rect.p1.x, y), (left_end, y), left_chr);
+                    }
+                }
+
                 // filling
                 if let Some(style) = self.fill_style {
-                    let fill_start = rect.p1.x + self.border_thickness as i32;
-                    let fill_end = rect.p2.x - self.border_thickness as i32;
+                    let fill_start = rect.p1.x + bt;
+                    let fill_end = rect.p2.x - bt;
                     if fill_start <= fill_end {
                         out.draw_line((fill_start, y), (fill_end, y), style);
                     }
                 }
+
                 // right border
-                out.draw_line(
-                    (rect.p2.x - self.border_thickness as i32 + 1, y),
-                    (rect.p2.x, y),
-                    right_chr,
-                );
+                if bt > 0 {
+                    let right_start = rect.p2.x - bt + 1;
+                    if right_start <= rect.p2.x {
+                        out.draw_line((right_start, y), (rect.p2.x, y), right_chr);
+                    }
+                }
             }
         }
 

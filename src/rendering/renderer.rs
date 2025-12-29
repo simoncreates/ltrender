@@ -80,6 +80,7 @@ impl RenderModeBehavior for Instant {
     where
         Self: Sized,
     {
+        info!("forcing a refresh");
         if let Some(s) = renderer.screens.get_mut(&object_key.screen_id) {
             s.render_all(
                 &mut renderer.screen_buffer,
@@ -190,6 +191,41 @@ where
                 &self.sprites,
             )?;
             s.change_screen_area(new_area);
+            let ids = s.draw_objects.to_vec();
+            let screen_rect = s.rect();
+
+            for object_id in ids {
+                self.run_drawable_screen_fitting(
+                    DrawObjectKey {
+                        screen_id,
+                        object_id,
+                    },
+                    screen_rect,
+                )?;
+            }
+
+            if let Some(s) = self.screens.get_mut(&screen_id) {
+                s.render_all(
+                    &mut self.screen_buffer,
+                    &mut self.obj_library,
+                    &self.sprites,
+                )?;
+            }
+            M::refresh(self)?;
+            Ok(())
+        } else {
+            Err(DrawError::DisplayKeyNotFound(screen_id))
+        }
+    }
+
+    pub fn fit_screen_area_to_contents(&mut self, screen_id: ScreenKey) -> Result<(), DrawError> {
+        if let Some(s) = self.screens.get_mut(&screen_id) {
+            s.remove_all(
+                &mut self.screen_buffer,
+                &mut self.obj_library,
+                &self.sprites,
+            )?;
+            s.change_screen_area_contents(&mut self.obj_library, &self.sprites);
             let ids = s.draw_objects.to_vec();
             let screen_rect = s.rect();
 
@@ -508,7 +544,7 @@ where
                     dp.set_end(new_points[1]);
                 } else {
                     info!(
-                        "Expected exactly two points for double-pointed drawable, got {}",
+                        "Expected exactly two points for double pointed drawable, got {}",
                         new_points.len()
                     );
                 }
@@ -516,11 +552,11 @@ where
                 if let Some(sp) = drawable.as_single_pointed_mut() {
                     sp.set_position(new_points[0]);
                 } else {
-                    info!("Drawable is not single-pointed");
+                    info!("Drawable is not single pointed");
                 }
             } else {
                 info!(
-                    "Expected exactly one point for single-pointed drawable, got {}",
+                    "Expected exactly one point for single pointed drawable, got {}",
                     new_points.len()
                 );
             }
@@ -592,12 +628,14 @@ where
 
     /// selects a different screen, if a mouse button has been clicked
     /// the EventHook is needed to access the mouse's current position
-    pub fn handle_screen_selection(&self, hook: &EventHook) -> Result<(), AppError> {
+    pub fn handle_screen_selection(&mut self, hook: &EventHook) -> Result<(), AppError> {
         if let Some(screen_sel_h) = &self.screen_select_handler {
             let (p1, p2) = {
                 let m_pos = hook.mouse_pos();
                 (m_pos.0 as i32, m_pos.1 as i32)
             };
+
+            let mut resize_required = (false, (0, 0));
 
             loop {
                 match screen_sel_h.try_recv() {
@@ -605,7 +643,6 @@ where
                         if let SubscriptionMessage::Mouse { msg, screen: _ } = m
                             && let MouseMessage::Pressed(_) = msg
                         {
-                            info!("received screen select message");
                             // find the highest screen at that position
                             let mut current_highest_screen = (usize::MAX, 0);
                             for (id, screen) in &self.screens {
@@ -626,6 +663,8 @@ where
                                     .send(Some(TargetScreen::None))
                                     .map_err(|_| AppError::SendError)?;
                             }
+                        } else if let SubscriptionMessage::Resize(x, y) = m {
+                            resize_required = (true, (x, y))
                         } else {
                             // if no relevant button is pressed, nothing  should change
                             screen_sel_h.send(None).map_err(|_| AppError::SendError)?;
@@ -635,6 +674,12 @@ where
                     Err(TryRecvError::Disconnected) => break,
                 }
             }
+            if resize_required.0 {
+                info!("resize required");
+                self.handle_resize(resize_required.1)?;
+            }
+        } else {
+            println!("wasddafaque")
         }
         Ok(())
     }
