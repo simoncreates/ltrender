@@ -1,23 +1,38 @@
-use std::i32;
+use std::fmt;
 
 use crate::{
     DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
-    terminal_buffer::CellDrawer,
+    error::AppError, input_handler::manager::TargetScreen, terminal_buffer::CellDrawer,
 };
 use common_stdx::{Point, Rect};
 pub type ScreenKey = usize;
 
 pub mod area_rect;
 pub use area_rect::{AreaPoint, AreaRect};
-use log::info;
 
-#[derive(Debug)]
 pub struct Screen {
     layer: usize,
     id: ScreenKey,
     area: AreaRect,
     pub terminal_size: (u16, u16),
     pub draw_objects: Vec<ObjectId>,
+    on_screen_select_callback: Option<Box<dyn FnMut() + 'static + Send>>,
+}
+
+impl fmt::Debug for Screen {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Screen")
+            .field("layer", &self.layer)
+            .field("id", &self.id)
+            .field("area", &self.area)
+            .field("terminal_size", &self.terminal_size)
+            .field("draw_objects", &self.draw_objects)
+            .field(
+                "on_screen_select_callback",
+                &self.on_screen_select_callback.is_some(),
+            )
+            .finish()
+    }
 }
 
 impl Screen {
@@ -28,11 +43,36 @@ impl Screen {
             area,
             terminal_size,
             draw_objects: Vec::new(),
+            on_screen_select_callback: None,
         }
     }
 
     pub fn change_screen_area(&mut self, new_area: AreaRect) {
         self.area = new_area;
+    }
+
+    pub fn add_on_screen_select(&mut self, callback: Box<dyn FnMut() + 'static + Send>) {
+        self.on_screen_select_callback = Some(callback);
+    }
+
+    pub fn on_screen_select(
+        &mut self,
+        obj_library: &mut DrawObjectLibrary,
+    ) -> Result<(), AppError> {
+        if let Some(callback) = &mut self.on_screen_select_callback {
+            (callback)();
+        }
+        for object_id in &self.draw_objects {
+            if let Some(obj) = obj_library.get_mut(&DrawObjectKey {
+                screen_id: self.id,
+                object_id: *object_id,
+            }) {
+                // todo: give objects global selection infos too?
+                obj.drawable
+                    .on_screen_select(TargetScreen::Screen(self.id))?;
+            }
+        }
+        Ok(())
     }
 
     /// sets the screens area to fit its contents
@@ -202,7 +242,6 @@ impl Screen {
     {
         let obj_ids: Vec<_> = self.draw_objects.to_vec();
         for obj_id in obj_ids {
-            info!("rendering drawable from screen with id: {}", obj_id);
             self.render_drawable(obj_id, screen_buffer, obj_library, sprites)?;
         }
         Ok(())

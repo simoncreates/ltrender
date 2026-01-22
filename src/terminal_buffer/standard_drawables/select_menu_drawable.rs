@@ -1,12 +1,14 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicU16, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU16, Ordering},
+    },
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use ascii_assets::{Color, TerminalChar};
 use common_stdx::{Point, Rect};
 use crossterm::event::KeyCode;
-use log::info;
 
 use crate::{
     DrawError, Drawable, ScreenFitting, ScreenKey,
@@ -18,7 +20,10 @@ use crate::{
         },
     },
     rendering::{render_handle::RenderHandle, renderer::RenderModeBehavior},
-    terminal_buffer::{RectDrawable, standard_drawables::rect_drawable::ScreenFitType},
+    terminal_buffer::{
+        RectDrawable,
+        standard_drawables::rect_drawable::{BorderStyle, ScreenFitType},
+    },
 };
 
 #[derive(Debug)]
@@ -55,17 +60,14 @@ impl SelectMenuDrawable {
         event_hook.subscribe(
             SubscriptionType::Key(KeySubscriptionTypes::All, KeyAction::Pressed),
             move |k| {
-                info!("we received sub message: {}", k);
                 if let SubscriptionMessage::Key { msg, screen } = k
                     && screen.targeting(menu_screen)
                 {
-                    info!("this is actually us lmao");
                     let current = global_selected_field.load(Ordering::Relaxed);
                     let max = amount_of_fields.load(Ordering::Relaxed);
 
                     if let KeyMessage::Pressed(KeyCode::Char('a'), _) = msg {
-                        info!("going left");
-                        if current < max {
+                        if current < max - 1 {
                             global_selected_field.fetch_add(1, Ordering::Relaxed);
                         }
                         let _ = r.render_screen(menu_screen);
@@ -73,7 +75,6 @@ impl SelectMenuDrawable {
                         && current > 0
                     {
                         // todo why does it only update when i resize the terminal?
-                        info!("going right");
                         global_selected_field.fetch_sub(1, Ordering::Relaxed);
                         let _ = r.render_screen(menu_screen);
                     }
@@ -100,10 +101,10 @@ impl Drawable for SelectMenuDrawable {
             if w > max_width {
                 max_width = w;
             }
-            total_height = total_height.saturating_add(h)
+            total_height = total_height.saturating_add(h + 1)
         }
 
-        Ok((max_width + 1, total_height))
+        Ok((max_width + 1, total_height.saturating_sub(1)))
     }
     fn draw(
         &mut self,
@@ -131,15 +132,12 @@ impl Drawable for SelectMenuDrawable {
                 )));
             };
             let bbox = bdc.get_bounding_box();
-            info!("size of unaligned fresh rect: {:?}", bbox);
-            let height = bbox.p2.y - bbox.p1.y;
+            let height = bbox.p2.y - bbox.p1.y + 1;
             bdc.align_to_origin(current_offset);
-            info!("size of aligned rect: {:?}", bdc.get_bounding_box());
             if self.selected_field.load(Ordering::Relaxed) == idx as u16 {
-                info!("drawing selector at: {:?}", current_offset);
                 initial.draw_line(
                     current_offset + Point::from((-1, 0)),
-                    current_offset + Point::from((-1, height)),
+                    current_offset + Point::from((-1, height - 1)),
                     TerminalChar::from_char('>').set_fg(Color::rgb(255, 50, 50)),
                 );
             }
@@ -150,6 +148,23 @@ impl Drawable for SelectMenuDrawable {
     }
     fn as_screen_fitting_mut(&mut self) -> Option<&mut dyn crate::ScreenFitting> {
         Some(self)
+    }
+    fn on_screen_select(
+        &mut self,
+        _selected_screen: crate::input_handler::manager::TargetScreen,
+    ) -> Result<(), DrawError> {
+        let time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+
+        let shade = ((time % 1.0) * 255.0) as u8;
+        let color = Color::rgb(shade, shade, shade);
+
+        self.border_rect.border_style =
+            BorderStyle::AllRound(TerminalChar::from_char('a').set_bg(color));
+
+        Ok(())
     }
 }
 

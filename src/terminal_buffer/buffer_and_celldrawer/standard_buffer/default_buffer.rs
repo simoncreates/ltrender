@@ -24,6 +24,9 @@ impl<CD: CellDrawer + Send + 'static> ScreenBufferCore for DefaultScreenBuffer<C
     fn cell_info_mut(&mut self) -> &mut Vec<CharacterInfoList> {
         &mut self.cells
     }
+    fn cell_info(&self) -> &Vec<CharacterInfoList> {
+        &self.cells
+    }
 
     fn intervals_mut(&mut self) -> &mut UpdateIntervalHandler {
         &mut self.intervals

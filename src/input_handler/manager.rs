@@ -1,4 +1,7 @@
-use crate::{ScreenKey, input_handler::hook::EventHook};
+use crate::{
+    ScreenKey,
+    input_handler::{hook::EventHook, screen_select_handler::ScreenSelectHMsg},
+};
 use crossbeam_channel::Sender as CbSender;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use std::{
@@ -177,7 +180,7 @@ impl TargetScreen {
     pub fn targeting(&self, screen_id: ScreenKey) -> bool {
         match self {
             TargetScreen::Global => true,
-            TargetScreen::None => true,
+            TargetScreen::None => false,
             TargetScreen::Screen(s) => s == &screen_id,
         }
     }
@@ -270,7 +273,7 @@ pub struct EventSubscribers {
 
 pub type ScreenSelectPreprocessing = Arc<(
     Mutex<Receiver<Option<TargetScreen>>>,
-    Sender<SubscriptionMessage>,
+    Sender<ScreenSelectHMsg>,
 )>;
 
 #[derive(Debug)]
@@ -323,6 +326,7 @@ impl CrosstermEventManager {
         let (select_sender, select_recv) = mpsc::channel();
         let (mut mngr, event_handler) =
             CrosstermEventManager::new_with_start(targeted_screen, false);
+
         let (s_sub, r_sub) = mpsc::channel();
         mngr.screen_select_handler = Some(Arc::new((Mutex::new(select_recv), s_sub)));
         mngr.start_reader_thread();
@@ -341,7 +345,8 @@ impl CrosstermEventManager {
 
         // constants:
         #[cfg(feature = "screen_select_subscription")]
-        let max_screen_selector_reponse_wait_time = Duration::from_millis(1);
+        // 200 millis
+        let max_screen_selector_reponse_wait_time = 200;
 
         macro_rules! send_subscription_message_to {
             ($field:ident, $message:expr) => {
@@ -666,6 +671,10 @@ impl CrosstermEventManager {
                             }
                         }
                         EventManagerCommand::SetTargetedScreen(screen) => {
+                            if let Some(select_arc) = &mut screen_select_handler {
+                                let _ = select_arc.1.send(ScreenSelectHMsg::Selection(screen));
+                            }
+                            info!("setting the current targeted screen to: {}", screen);
                             let mut state = get_state!();
                             state.targeted_screen = screen;
                         }
@@ -776,23 +785,29 @@ impl CrosstermEventManager {
                         key_is_repeating,
                     );
 
-                    if select_arc.1.send(selector_msg).is_err() {
+                    if select_arc
+                        .1
+                        .send(ScreenSelectHMsg::Event(selector_msg))
+                        .is_err()
+                    {
                         return;
                     }
 
                     if let Ok(recv) = select_arc.0.lock() {
-                        use std::sync::mpsc::RecvTimeoutError;
+                        let mut received: bool = false;
 
-                        match recv.recv_timeout(max_screen_selector_reponse_wait_time) {
-                            Ok(Some(new_screen)) => {
+                        for _ in 0..max_screen_selector_reponse_wait_time {
+                            if let Ok(Some(new_screen)) = recv.try_recv() {
                                 let mut st = get_state!();
+                                info!("shh selected: {new_screen}");
+                                received = true;
                                 st.targeted_screen = new_screen;
+                                break;
                             }
-                            Ok(None) => {}
-                            Err(RecvTimeoutError::Timeout) => {
-                                info!("timeouted ")
-                            }
-                            Err(RecvTimeoutError::Disconnected) => {}
+                            thread::sleep(Duration::from_millis(1));
+                        }
+                        if !received {
+                            info!("timed out");
                         }
                     }
                 }

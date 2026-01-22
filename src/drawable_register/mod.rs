@@ -63,6 +63,13 @@ impl DrawObjectLibrary {
         self.all_objects.get_mut(id)
     }
 
+    pub fn get_obj_screen(&self, obj_id: ObjectId) -> Option<&ScreenKey> {
+        self.all_objects
+            .iter()
+            .find(|(key, _)| key.object_id == obj_id)
+            .map(|(k, _)| &k.screen_id)
+    }
+
     fn generate_drawable_id(&self) -> ObjectId {
         self.all_objects.len()
     }

@@ -100,7 +100,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
                 screen_layer,
                 display_id: obj_id,
             };
-            let idx = self.idx_of(rd.pos);
+            let idx = self.idx_of_unchecked(rd.pos);
             self.cell_info_mut()[idx].info.insert(obj_id, ci);
 
             touched.insert(idx);
@@ -133,7 +133,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
                         continue;
                     }
 
-                    let idx = self.idx_of(pos);
+                    let idx = self.idx_of_unchecked(pos);
 
                     if !touched.contains(&idx) {
                         self.cell_info_mut()[idx].info.remove(&obj_id);
@@ -176,7 +176,7 @@ pub trait ScreenBuffer: ScreenBufferCore {
                         x: x as i32,
                         y: row as i32,
                     };
-                    let idx = self.idx_of(pos);
+                    let idx = self.idx_of_unchecked(pos);
                     self.cell_info_mut()[idx].info.remove(&obj_id);
                 }
             }
@@ -209,10 +209,8 @@ pub trait ScreenBuffer: ScreenBufferCore {
                 let y = (idx / cols as usize) as u16;
                 let x = (idx % cols as usize) as u16;
 
-                let chr_to_write = if let Some(ci_opt) =
-                    cell.info.values().max_by_key(|c| (c.screen_layer, c.layer))
-                {
-                    ci_opt.chr
+                let chr_to_write = if let Some((_, char)) = Self::get_char_to_write(cell) {
+                    char
                 } else {
                     TerminalChar {
                         chr: ' ',
@@ -275,8 +273,25 @@ pub trait ScreenBuffer: ScreenBufferCore {
     }
     fn drawer_sender(&self) -> std::sync::mpsc::SyncSender<CellDrawerCommand>;
 
-    fn idx_of(&self, pos: Point<i32>) -> usize {
+    fn idx_of_unchecked(&self, pos: Point<i32>) -> usize {
         (pos.y as usize) * self.size().0 as usize + pos.x as usize
+    }
+
+    // only returns some if the index is in the bounds of the buffer
+    fn idx_of(&self, pos: Point<i32>) -> Option<usize> {
+        let idx = self.idx_of_unchecked(pos);
+        if idx < self.cell_info().len() {
+            Some(idx)
+        } else {
+            None
+        }
+    }
+
+    fn get_char_to_write(cell: &CharacterInfoList) -> Option<(ObjectId, TerminalChar)> {
+        cell.info
+            .iter()
+            .max_by_key(|(_, c)| (c.screen_layer, c.layer))
+            .map(|(obj_id, c)| (*obj_id, c.chr))
     }
 
     fn drop(&mut self);

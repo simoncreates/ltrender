@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use ascii_assets::TerminalChar;
 use common_stdx::{Point, Rect};
-use log::info;
 
 use crate::BasicDraw;
 

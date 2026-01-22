@@ -7,6 +7,7 @@ use ltrender::{
     input_handler::{
         hook::InputButton,
         manager::{MouseButtons, MouseMessage, SubscriptionMessage, TargetScreen},
+        screen_select_handler::ScreenSelectHMsg,
     },
 };
 
@@ -26,17 +27,26 @@ fn main() {
             };
         }
         loop {
-            if let Ok(sm) = screen_select_h.recv()
-                && let SubscriptionMessage::Mouse {
-                    msg,
-                    screen: _screen,
-                } = sm
-                && let MouseMessage::Pressed(_) = msg
-            {
-                try_send!(Some(TargetScreen::Screen(1)));
-            } else {
-                try_send!(None);
-            };
+            if let Ok(sshm) = screen_select_h.recv() {
+                match sshm {
+                    ScreenSelectHMsg::Event(sm) => {
+                        if let SubscriptionMessage::Mouse {
+                            msg,
+                            screen: _screen,
+                        } = sm
+                            && let MouseMessage::Pressed(_) = msg
+                        {
+                            try_send!(Some(TargetScreen::Screen(1)));
+                        } else {
+                            try_send!(None);
+                        };
+                    }
+                    // accept incoming selection requests
+                    ScreenSelectHMsg::Selection(s) => {
+                        try_send!(Some(s));
+                    }
+                }
+            }
         }
     });
     let mut hook = input_handler.create_hook();

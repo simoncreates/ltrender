@@ -23,6 +23,10 @@ pub enum RenderCommand {
         screen_id: ScreenKey,
         resp: mpsc::Sender<Result<(), AppError>>,
     },
+    AddOnScreenSelect {
+        screen_id: ScreenKey,
+        callback: Box<dyn FnMut() + 'static + Send>,
+    },
     ChangeScreenLayer {
         screen_id: ScreenKey,
         new_layer: usize,
@@ -147,6 +151,16 @@ where
 
     pub fn fit_screen_area_to_contents(&self, screen_id: ScreenKey) -> Result<(), AppError> {
         self.send_and_wait(|resp| RenderCommand::FitScreenAreaToContents { screen_id, resp })
+    }
+
+    pub fn add_on_screen_select<F>(&self, screen_id: ScreenKey, callback: F) -> Result<(), AppError>
+    where
+        F: FnMut() + 'static + Send,
+    {
+        self.send_and_wait(|_| RenderCommand::AddOnScreenSelect {
+            screen_id,
+            callback: Box::new(callback),
+        })
     }
 
     pub fn change_screen_layer(

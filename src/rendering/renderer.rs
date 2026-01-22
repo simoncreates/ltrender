@@ -4,6 +4,7 @@ use crate::display_screen::AreaRect;
 use crate::drawable_register::ObjectLifetime;
 use crate::input_handler::hook::EventHook;
 use crate::input_handler::manager::{MouseMessage, SubscriptionMessage, TargetScreen};
+use crate::input_handler::screen_select_handler::ScreenSelectHMsg;
 use crate::input_handler::screen_select_handler::ScreenSelectHandler;
 use crate::terminal_buffer::CellDrawer;
 use crate::{
@@ -40,14 +41,6 @@ pub trait RenderModeBehavior {
     where
         Self: Sized;
 
-    // describes the rendering behavior, right after a drawable has been registered
-    fn register_render<B: ScreenBuffer>(
-        renderer: &mut Renderer<B, Self>,
-        object_key: DrawObjectKey,
-    ) -> Result<(), DrawError>
-    where
-        Self: Sized;
-
     fn render_screen<B: ScreenBuffer>(
         renderer: &mut Renderer<B, Self>,
         screen_id: ScreenKey,
@@ -80,23 +73,6 @@ impl RenderModeBehavior for Instant {
         Self::refresh(renderer)?;
         Ok(())
     }
-    fn register_render<B: ScreenBuffer>(
-        renderer: &mut Renderer<B, Self>,
-        object_key: DrawObjectKey,
-    ) -> Result<(), DrawError>
-    where
-        Self: Sized,
-    {
-        if let Some(s) = renderer.screens.get_mut(&object_key.screen_id) {
-            s.render_all(
-                &mut renderer.screen_buffer,
-                &mut renderer.obj_library,
-                &renderer.sprites,
-            )?;
-        };
-        renderer.forced_refresh()?;
-        Ok(())
-    }
     fn render_screen<B: ScreenBuffer>(
         renderer: &mut Renderer<B, Self>,
         screen_id: ScreenKey,
@@ -106,16 +82,12 @@ impl RenderModeBehavior for Instant {
     {
         info!("rendering full screen");
         if let Some(s) = renderer.screens.get_mut(&screen_id) {
-            s.remove_all(
-                &mut renderer.screen_buffer,
-                &mut renderer.obj_library,
-                &renderer.sprites,
-            )?;
             s.render_all(
                 &mut renderer.screen_buffer,
                 &mut renderer.obj_library,
                 &renderer.sprites,
             )?;
+            Self::refresh(renderer)?;
         }
         Ok(())
     }
@@ -130,15 +102,6 @@ impl RenderModeBehavior for Buffered {
     }
     // noop, since buffered rendering does not need to refresh
     fn refresh<B: ScreenBuffer>(_renderer: &mut Renderer<B, Self>) -> Result<(), DrawError> {
-        Ok(())
-    }
-    fn register_render<B: ScreenBuffer>(
-        _renderer: &mut Renderer<B, Self>,
-        _object_key: DrawObjectKey,
-    ) -> Result<(), DrawError>
-    where
-        Self: Sized,
-    {
         Ok(())
     }
     // might change up the impl here
@@ -291,6 +254,23 @@ where
         }
     }
 
+    pub fn add_on_screen_select(
+        &mut self,
+        screen_id: ScreenKey,
+        callback: Box<dyn FnMut() + 'static + Send>,
+    ) {
+        if let Some(s) = self.screens.get_mut(&screen_id) {
+            s.add_on_screen_select(callback);
+        }
+    }
+    fn on_screen_select(&mut self, screen_id: ScreenKey) -> Result<(), AppError> {
+        if let Some(s) = self.screens.get_mut(&screen_id) {
+            s.on_screen_select(&mut self.obj_library)?;
+            M::render_screen(self, screen_id)?;
+        }
+        Ok(())
+    }
+
     pub fn change_screen_layer(
         &mut self,
         screen_id: ScreenKey,
@@ -336,7 +316,7 @@ where
                 screen_id,
                 object_id: new_obj_id,
             };
-            M::register_render(self, key)?;
+            M::render_screen(self, key.screen_id)?;
             Ok(key)
         } else {
             Err(DrawError::DisplayKeyNotFound(screen_id))
@@ -454,7 +434,7 @@ where
 
             s.register_drawable(object_key.object_id, &self.obj_library);
 
-            M::register_render(self, object_key)?;
+            M::render_screen(self, object_key.screen_id)?;
             Ok(())
         } else {
             Err(DrawError::DisplayKeyNotFound(object_key.screen_id))
@@ -672,57 +652,88 @@ where
     /// selects a different screen, if a mouse button has been clicked
     /// the EventHook is needed to access the mouse's current position
     pub fn handle_screen_selection(&mut self, hook: &EventHook) -> Result<(), AppError> {
+        let mut selections = Vec::new();
         if let Some(screen_sel_h) = &self.screen_select_handler {
             let (p1, p2) = {
                 let m_pos = hook.mouse_pos();
                 (m_pos.0 as i32, m_pos.1 as i32)
             };
 
+            let mouse_point = Point::from((p1, p2));
+
+            // grab the id, of the screen, on which the object has been drawn on
+            // todo: add object specific selection? we already have the selected obj id anyways
+
+            let screen_selected_char =
+                if let Some(drawn_idx) = self.screen_buffer.idx_of(mouse_point) {
+                    let drawn = &self.screen_buffer.cell_info_mut()[drawn_idx];
+                    if let Some((obj_id, _)) = B::get_char_to_write(drawn)
+                        && let Some(key) = self.obj_library.get_obj_screen(obj_id)
+                    {
+                        key
+                    } else {
+                        return Ok(());
+                    }
+                } else {
+                    return Ok(());
+                };
+
             let mut resize_required = (false, (0, 0));
 
             loop {
-                match screen_sel_h.try_recv() {
-                    Ok(m) => {
-                        if let SubscriptionMessage::Mouse { msg, screen: _ } = m
-                            && let MouseMessage::Pressed(_) = msg
-                        {
-                            // find the highest screen at that position
-                            let mut current_highest_screen = (usize::MAX, 0);
-                            for (id, screen) in &self.screens {
-                                let screen_layer = screen.layer();
-                                if screen.rect().contains(Point::from((p1, p2)))
-                                    && screen_layer >= current_highest_screen.1
+                let opt_selection = match screen_sel_h.try_recv() {
+                    Ok(sshm) => {
+                        match sshm {
+                            ScreenSelectHMsg::Event(m) => {
+                                if let SubscriptionMessage::Mouse { msg, screen: _ } = m
+                                    && let MouseMessage::Pressed(_) = msg
                                 {
-                                    current_highest_screen = (*id, screen_layer);
+                                    // find the highest screen at that position
+                                    let mut current_highest_screen = (usize::MAX, 0);
+                                    for (id, screen) in &self.screens {
+                                        let screen_layer = screen.layer();
+                                        if screen.rect().contains(mouse_point)
+                                            && screen_layer >= current_highest_screen.1
+                                            && id == screen_selected_char
+                                        {
+                                            current_highest_screen = (*id, screen_layer);
+                                        }
+                                    }
+
+                                    if self.screens.contains_key(&current_highest_screen.0) {
+                                        Some(TargetScreen::Screen(current_highest_screen.0))
+                                    } else {
+                                        Some(TargetScreen::None)
+                                    }
+                                } else if let SubscriptionMessage::Resize(x, y) = m {
+                                    resize_required = (true, (x, y));
+                                    None
+                                } else {
+                                    None
                                 }
                             }
-
-                            if self.screens.contains_key(&current_highest_screen.0) {
-                                screen_sel_h
-                                    .send(Some(TargetScreen::Screen(current_highest_screen.0)))
-                                    .map_err(|_| AppError::SendError)?;
-                            } else {
-                                screen_sel_h
-                                    .send(Some(TargetScreen::None))
-                                    .map_err(|_| AppError::SendError)?;
-                            }
-                        } else if let SubscriptionMessage::Resize(x, y) = m {
-                            resize_required = (true, (x, y))
-                        } else {
-                            // if no relevant button is pressed, nothing  should change
-                            screen_sel_h.send(None).map_err(|_| AppError::SendError)?;
+                            ScreenSelectHMsg::Selection(s) => Some(s),
                         }
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => break,
-                }
+                };
+                if let Some(selection) = opt_selection {
+                    selections.push(selection);
+                };
+                screen_sel_h
+                    .send(opt_selection)
+                    .map_err(|_| AppError::SendError)?;
             }
             if resize_required.0 {
-                info!("resize required");
                 self.handle_resize(resize_required.1)?;
             }
-        } else {
-            println!("wasddafaque")
+        }
+        // if a screen has been selected, call its on screen select function
+        for selection in selections {
+            if let TargetScreen::Screen(s) = selection {
+                self.on_screen_select(s)?;
+            };
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
 use crate::{
     DrawError, SpriteRegistry, drawable_traits::basic_draw_creator::BasicDrawCreator,
-    update_interval_handler::UpdateIntervalCreator,
+    input_handler::manager::TargetScreen, update_interval_handler::UpdateIntervalCreator,
 };
 
 use ascii_assets::TerminalChar;
@@ -16,25 +16,26 @@ pub struct BasicDraw {
 }
 
 pub trait Drawable: std::fmt::Debug + Send {
-    /// ### Info
-    ///
-    /// - Usually you will not need to use the SpriteRegistry
-    /// - Also it is generally not recommended to mutate self during the draw function,
-    ///   but has been added for flexibility reasons.
-    ///
+    /// The Output of this function will be used to render to the terminal
     fn draw(&mut self, sprites: &SpriteRegistry) -> Result<BasicDrawCreator, DrawError>;
 
     /// Return an UpdateIntervalCreator
     ///
     /// UpdateIntervalCreator`s utility functions shall be used, to create the areas to be updated.
     ///
-    /// if None is returned, a Standard imeplementation will be used, which is very inefficient.
+    /// if None is returned, a Standard imeplementation will be used, which may be less efficient.
     ///
     fn bounding_iv(&self, _sprites: &SpriteRegistry) -> Option<UpdateIntervalCreator> {
         None
     }
 
     fn size(&self, sprites: &SpriteRegistry) -> Result<(u16, u16), DrawError>;
+
+    // if the screen that the drawable is on has been selected
+    fn on_screen_select(&mut self, selected_screen: TargetScreen) -> Result<(), DrawError> {
+        let _ = selected_screen;
+        Ok(())
+    }
 
     fn get_top_left(&mut self) -> Option<Point<i32>> {
         if self.as_double_pointed_mut().is_some() {
@@ -61,8 +62,6 @@ pub trait Drawable: std::fmt::Debug + Send {
         None
     }
 }
-
-// extensions:
 
 /// One point that can be read / written.
 pub trait SinglePointed {
@@ -98,9 +97,6 @@ pub trait MultiPointed {
 }
 
 /// If implemented, this function will be ran, if a screens size changes.
-///
-/// ## Requirements:
-/// Requires as_screen_fitting to be implemented in the Drawable trait
 ///
 /// ## Example:
 /// When implemententing a RectDrawable you can make this function just replace the internal rect field.

@@ -7,17 +7,25 @@ use std::{
     thread::JoinHandle,
 };
 
-pub type ScreenSelectcallback = Box<dyn FnMut(SubscriptionMessage) -> Option<TargetScreen> + Send>;
+pub type ScreenSelectcallback = Box<dyn FnMut(ScreenSelectHMsg) -> Option<TargetScreen> + Send>;
+
+#[derive(Debug)]
+pub enum ScreenSelectHMsg {
+    Event(SubscriptionMessage),
+    /// if a hook sends a forced screen selection message to
+    /// the Manager, it will first have to be "approved" by the ScreenSelectHandler
+    Selection(TargetScreen),
+}
 
 #[derive(Debug)]
 pub struct ScreenSelectHandler {
-    recv: Arc<Mutex<Receiver<SubscriptionMessage>>>,
+    recv: Arc<Mutex<Receiver<ScreenSelectHMsg>>>,
     send: Arc<Sender<Option<TargetScreen>>>,
     handle: Option<JoinHandle<()>>,
 }
 
 impl ScreenSelectHandler {
-    pub fn new(recv: Receiver<SubscriptionMessage>, send: Sender<Option<TargetScreen>>) -> Self {
+    pub fn new(recv: Receiver<ScreenSelectHMsg>, send: Sender<Option<TargetScreen>>) -> Self {
         Self {
             recv: Arc::new(Mutex::new(recv)),
             send: Arc::new(send),
@@ -25,12 +33,12 @@ impl ScreenSelectHandler {
         }
     }
 
-    pub fn recv(&self) -> Result<SubscriptionMessage, mpsc::RecvError> {
+    pub fn recv(&self) -> Result<ScreenSelectHMsg, mpsc::RecvError> {
         let recv = self.recv.lock().unwrap();
         recv.recv()
     }
 
-    pub fn try_recv(&self) -> Result<SubscriptionMessage, mpsc::TryRecvError> {
+    pub fn try_recv(&self) -> Result<ScreenSelectHMsg, mpsc::TryRecvError> {
         let recv = self.recv.lock().unwrap();
         recv.try_recv()
     }

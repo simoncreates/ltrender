@@ -52,6 +52,12 @@ where
                             .map_err(Into::into);
                         let _ = resp.send(res);
                     }
+                    RenderCommand::AddOnScreenSelect {
+                        screen_id,
+                        callback,
+                    } => {
+                        renderer.add_on_screen_select(screen_id, callback);
+                    }
                     RenderCommand::ChangeScreenLayer {
                         screen_id,
                         new_layer,
