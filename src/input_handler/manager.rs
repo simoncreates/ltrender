@@ -794,19 +794,13 @@ impl CrosstermEventManager {
                     }
 
                     if let Ok(recv) = select_arc.0.lock() {
-                        let mut received: bool = false;
-
-                        for _ in 0..max_screen_selector_reponse_wait_time {
-                            if let Ok(Some(new_screen)) = recv.try_recv() {
+                        if let Ok(new_screen) = recv.recv_timeout(Duration::from_millis(2)) {
+                            if let Some(screen) = new_screen {
                                 let mut st = get_state!();
-                                info!("shh selected: {new_screen}");
-                                received = true;
-                                st.targeted_screen = new_screen;
-                                break;
+                                info!("shh selected: {screen}");
+                                st.targeted_screen = screen;
                             }
-                            thread::sleep(Duration::from_millis(1));
-                        }
-                        if !received {
+                        } else {
                             info!("timed out");
                         }
                     }

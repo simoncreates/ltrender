@@ -1,4 +1,4 @@
-use std::{sync::mpsc, thread};
+use std::{sync::mpsc, thread, time::Duration};
 
 #[cfg(feature = "screen_select_subscription")]
 use crate::CrosstermEventManager;
@@ -29,7 +29,7 @@ where
             if let Some(hook) = &event_hook {
                 let _ = renderer.handle_screen_selection(hook);
             }
-            while let Ok(cmd) = rx.try_recv() {
+            while let Ok(cmd) = rx.recv_timeout(Duration::from_millis(2)) {
                 match cmd {
                     RenderCommand::CreateScreen { rect, layer, resp } => {
                         // create_screen returns ScreenKey
