@@ -789,7 +789,7 @@ impl CrosstermEventManager {
                     }
 
                     if let Ok(recv) = select_arc.0.lock() {
-                        if let Ok(new_screen) = recv.recv_timeout(Duration::from_millis(20)) {
+                        if let Ok(new_screen) = recv.recv_timeout(Duration::from_millis(5)) {
                             if let Some(screen) = new_screen {
                                 let mut st = get_state!();
                                 info!("shh selected: {screen}");

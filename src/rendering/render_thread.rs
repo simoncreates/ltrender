@@ -1,46 +1,65 @@
 #[cfg(feature = "screen_select_subscription")]
 use crate::CrosstermEventManager;
 use crate::{
+    Renderer, ScreenBuffer,
     input_handler::{
         hook::EventHook,
-        manager::{EventHandler, KeyAction, KeySubscriptionTypes, SubscriptionType},
+        manager::{
+            EventHandler, KeyAction, KeySubscriptionTypes, MouseSubscriptionTypes, SubscriptionType,
+        },
     },
     rendering::{
         render_handle::{RenderCommand, RenderHandle},
         renderer::RenderModeBehavior,
     },
     terminal_buffer::CellDrawer,
-    Renderer, ScreenBuffer,
 };
 use std::{sync::mpsc, thread, time::Duration};
 
 fn start_thread<B, M>(
     mut renderer: Renderer<B, M>,
-    mut event_hook: Option<EventHook>,
+    event_hook: Option<EventHook>,
 ) -> RenderHandle<M>
 where
     B: ScreenBuffer + Send + 'static,
     B::Drawer: CellDrawer + Send + 'static,
     M: RenderModeBehavior + Send + 'static,
 {
+    let mut key_hook = event_hook;
+    let mut mouse_hook = key_hook.clone();
     let (tx, rx) = mpsc::channel::<RenderCommand>();
-    if let Some(hook) = &mut event_hook {
+    if let Some(key_hook) = &mut key_hook {
         // todo: either add multiple accumulations, or a subscription type for all possible message types
-        hook.start_accumulation(SubscriptionType::Key(
-            KeySubscriptionTypes::All,
-            KeyAction::Any,
-        ))
-        .unwrap();
+        key_hook
+            .start_accumulation(SubscriptionType::Key(
+                KeySubscriptionTypes::All,
+                KeyAction::Any,
+            ))
+            .unwrap();
+    };
+    if let Some(mouse_hook) = &mut mouse_hook {
+        // todo: either add multiple accumulations, or a subscription type for all possible message types
+        mouse_hook
+            .start_accumulation(SubscriptionType::Mouse(MouseSubscriptionTypes::All))
+            .unwrap();
     };
     // spawn the renderer loop
     thread::spawn(move || {
         loop {
             let _ = renderer.remove_all_framebased_objects();
-            if let Some(hook) = &mut event_hook {
+            // dump all key messages
+            if let Some(hook) = &mut key_hook {
                 let _ = renderer.handle_screen_selection(hook);
                 let msgs = hook.dump_accumulation();
                 for msg in msgs {
-                    let _ = renderer.handle_key_press(msg);
+                    let _ = renderer.handle_input_message(msg);
+                }
+            }
+            // dump all mouse messages
+            if let Some(hook) = &mut mouse_hook {
+                let msgs = hook.dump_accumulation();
+                for msg in msgs {
+                    let _ = renderer.handle_input_message(msg);
                 }
             }
             while let Ok(cmd) = rx.recv_timeout(Duration::from_millis(2)) {
@@ -212,7 +231,7 @@ where
     B::Drawer: CellDrawer + Send + 'static,
     M: RenderModeBehavior + Send + 'static,
 {
-    use crate::{input_handler::manager::TargetScreen, CrosstermEventManager};
+    use crate::{CrosstermEventManager, input_handler::manager::TargetScreen};
 
     let (event_mngr, event_handler, screen_sel_handler) =
         CrosstermEventManager::new_with_select_sub(TargetScreen::None);

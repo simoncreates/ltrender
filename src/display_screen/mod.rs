@@ -1,15 +1,13 @@
 use std::fmt;
 
 use crate::{
+    DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
     error::AppError,
     input_handler::manager::{SubscriptionMessage, TargetScreen},
     terminal_buffer::CellDrawer,
-    DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
 };
 use common_stdx::{Point, Rect};
 pub type ScreenKey = usize;
-
-use log::info;
 
 pub mod area_rect;
 pub use area_rect::{AreaPoint, AreaRect};
@@ -56,23 +54,26 @@ impl Screen {
         m: &SubscriptionMessage,
         obj_library: &mut DrawObjectLibrary,
     ) -> Result<(), DrawError> {
-        info!("handling input message {}", m);
-
         for drawable in &self.draw_objects {
             if let Some(d_o) = obj_library.get_mut(&DrawObjectKey {
                 screen_id: self.id,
                 object_id: *drawable,
             }) {
-                if let SubscriptionMessage::Key { msg, screen } = m {
-                    let d = d_o.drawable.as_mut();
-
-                    let msg_clone = msg.clone();
-
-                    if screen.targeting(self.id) {
-                        info!("sending on key press finally {:?}", msg_clone);
-                        d.on_key_press(msg_clone.clone())?;
+                let d = d_o.drawable.as_mut();
+                match m {
+                    SubscriptionMessage::Key { msg, screen } => {
+                        if screen.targeting(self.id) {
+                            d.on_key_press(*msg)?;
+                        }
+                        d.on_any_key_press(*msg, *screen)?;
                     }
-                    d.on_any_key_press(msg_clone, *screen)?;
+                    SubscriptionMessage::Mouse { msg, screen } => {
+                        if screen.targeting(self.id) {
+                            d.on_mousekey_press(*msg)?;
+                        }
+                        d.on_any_mousekey_press(*msg, *screen)?;
+                    }
+                    _ => {}
                 }
             }
         }

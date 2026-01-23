@@ -649,10 +649,11 @@ where
         Ok(result)
     }
 
-    pub fn handle_key_press(&mut self, m: SubscriptionMessage) -> Result<(), AppError> {
-        for (_id, screen) in &mut self.screens {
-            screen.handle_input_message(&m.clone(), &mut self.obj_library)?
+    pub fn handle_input_message(&mut self, m: SubscriptionMessage) -> Result<(), AppError> {
+        for screen in self.screens.values_mut() {
+            screen.handle_input_message(&m.clone(), &mut self.obj_library)?;
         }
+        M::render_all(self)?;
         Ok(())
     }
 

@@ -1,5 +1,4 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseButton};
-use log::info;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -111,12 +110,12 @@ impl EventHook {
                 };
                 {
                     let acc_recv_lock = opt_acc_recv.lock().unwrap();
-                    if let Some(acc_recv) = acc_recv_lock.clone() {
-                        if let Ok(msg) = acc_recv.try_recv() {
-                            let mut msgs = accumalated_msg.lock().unwrap();
-                            info!("indexing new messages to accumulation: {}", msg);
-                            msgs.push(msg);
-                        }
+                    if let Some(acc_recv) = acc_recv_lock.clone()
+                        && let Ok(msg) = acc_recv.try_recv()
+                    {
+                        let mut msgs = accumalated_msg.lock().unwrap();
+
+                        msgs.push(msg);
                     }
                 }
 
