@@ -1,11 +1,15 @@
 use std::fmt;
 
 use crate::{
+    error::AppError,
+    input_handler::manager::{SubscriptionMessage, TargetScreen},
+    terminal_buffer::CellDrawer,
     DrawError, DrawObjectKey, DrawObjectLibrary, ObjectId, ScreenBuffer, SpriteRegistry,
-    error::AppError, input_handler::manager::TargetScreen, terminal_buffer::CellDrawer,
 };
 use common_stdx::{Point, Rect};
 pub type ScreenKey = usize;
+
+use log::info;
 
 pub mod area_rect;
 pub use area_rect::{AreaPoint, AreaRect};
@@ -45,6 +49,34 @@ impl Screen {
             draw_objects: Vec::new(),
             on_screen_select_callback: None,
         }
+    }
+
+    pub fn handle_input_message(
+        &mut self,
+        m: &SubscriptionMessage,
+        obj_library: &mut DrawObjectLibrary,
+    ) -> Result<(), DrawError> {
+        info!("handling input message {}", m);
+
+        for drawable in &self.draw_objects {
+            if let Some(d_o) = obj_library.get_mut(&DrawObjectKey {
+                screen_id: self.id,
+                object_id: *drawable,
+            }) {
+                if let SubscriptionMessage::Key { msg, screen } = m {
+                    let d = d_o.drawable.as_mut();
+
+                    let msg_clone = msg.clone();
+
+                    if screen.targeting(self.id) {
+                        info!("sending on key press finally {:?}", msg_clone);
+                        d.on_key_press(msg_clone.clone())?;
+                    }
+                    d.on_any_key_press(msg_clone, *screen)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn change_screen_area(&mut self, new_area: AreaRect) {

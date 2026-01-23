@@ -1,6 +1,8 @@
 use crate::{
-    DrawError, SpriteRegistry, drawable_traits::basic_draw_creator::BasicDrawCreator,
-    input_handler::manager::TargetScreen, update_interval_handler::UpdateIntervalCreator,
+    DrawError, SpriteRegistry,
+    drawable_traits::basic_draw_creator::BasicDrawCreator,
+    input_handler::manager::{KeyMessage, TargetScreen},
+    update_interval_handler::UpdateIntervalCreator,
 };
 
 use ascii_assets::TerminalChar;
@@ -34,6 +36,23 @@ pub trait Drawable: std::fmt::Debug + Send {
     // if the screen that the drawable is on has been selected
     fn on_screen_select(&mut self, selected_screen: TargetScreen) -> Result<(), DrawError> {
         let _ = selected_screen;
+        Ok(())
+    }
+
+    /// gets triggered, if any key with any selected screen has been pressed.
+    /// To know, if the drawable is on this screen:
+    ///     1. use the on_key_press function
+    ///     2. pass the screen_id of the screen that the drawable is on to the drawable and check manually
+    fn on_any_key_press(&mut self, msg: KeyMessage, screen: TargetScreen) -> Result<(), DrawError> {
+        let _ = msg;
+        let _ = screen;
+        Ok(())
+    }
+
+    /// gets triggered, if a key has been pressed and the screen, which the drawable is on is selected.
+    /// If you want react to global keypresses use the trait function 'on_any_keypress'
+    fn on_key_press(&mut self, msg: KeyMessage) -> Result<(), DrawError> {
+        let _ = msg;
         Ok(())
     }
 

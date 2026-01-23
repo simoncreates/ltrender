@@ -343,11 +343,6 @@ impl CrosstermEventManager {
         #[cfg(feature = "screen_select_subscription")]
         let mut screen_select_handler = mem::take(&mut self.screen_select_handler);
 
-        // constants:
-        #[cfg(feature = "screen_select_subscription")]
-        // 200 millis
-        let max_screen_selector_reponse_wait_time = 200;
-
         macro_rules! send_subscription_message_to {
             ($field:ident, $message:expr) => {
                 if let Ok(mut sub) = subscribers.lock() {
@@ -794,7 +789,7 @@ impl CrosstermEventManager {
                     }
 
                     if let Ok(recv) = select_arc.0.lock() {
-                        if let Ok(new_screen) = recv.recv_timeout(Duration::from_millis(10)) {
+                        if let Ok(new_screen) = recv.recv_timeout(Duration::from_millis(20)) {
                             if let Some(screen) = new_screen {
                                 let mut st = get_state!();
                                 info!("shh selected: {screen}");

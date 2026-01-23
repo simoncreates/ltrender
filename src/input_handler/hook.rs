@@ -1,4 +1,5 @@
 use crossterm::event::{KeyCode, KeyModifiers, MouseButton};
+use log::info;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -32,6 +33,9 @@ pub struct EventHook {
     callbacks: Arc<Mutex<HashMap<SubscriptionID, Callback>>>,
     receivers: Arc<Mutex<Vec<SubscriptionDate>>>,
     dispatcher: Option<thread::JoinHandle<()>>,
+    // you can choose to accumulate messages in a hook and then dump them
+    accumulate: Arc<Mutex<Option<CbReceiver<SubscriptionMessage>>>>,
+    accumulated_messages: Arc<Mutex<Vec<SubscriptionMessage>>>,
 }
 
 impl Clone for EventHook {
@@ -42,6 +46,8 @@ impl Clone for EventHook {
             callbacks: Arc::new(Mutex::new(HashMap::new())),
             receivers: Arc::new(Mutex::new(Vec::new())),
             dispatcher: None,
+            accumulate: Arc::new(Mutex::new(None)),
+            accumulated_messages: Arc::new(Mutex::new(vec![])),
         }
     }
 }
@@ -79,6 +85,8 @@ impl EventHook {
             callbacks: Arc::new(Mutex::new(HashMap::new())),
             receivers: Arc::new(Mutex::new(Vec::new())),
             dispatcher: None,
+            accumulate: Arc::new(Mutex::new(None)),
+            accumulated_messages: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -89,16 +97,28 @@ impl EventHook {
 
         let callbacks = self.callbacks.clone();
         let receivers = self.receivers.clone();
+        let opt_acc_recv = self.accumulate.clone();
+        let accumalated_msg = self.accumulated_messages.clone();
 
         self.dispatcher = Some(thread::spawn(move || {
             let mut idle_sleep = Duration::from_millis(2);
-            let max_sleep = Duration::from_millis(50);
+            let max_sleep: Duration = Duration::from_millis(50);
 
             loop {
                 let snapshot: Vec<(SubscriptionID, CbReceiver<SubscriptionMessage>)> = {
                     let guard = receivers.lock().unwrap();
                     guard.iter().map(|(id, r)| (*id, r.clone())).collect()
                 };
+                {
+                    let acc_recv_lock = opt_acc_recv.lock().unwrap();
+                    if let Some(acc_recv) = acc_recv_lock.clone() {
+                        if let Ok(msg) = acc_recv.try_recv() {
+                            let mut msgs = accumalated_msg.lock().unwrap();
+                            info!("indexing new messages to accumulation: {}", msg);
+                            msgs.push(msg);
+                        }
+                    }
+                }
 
                 if snapshot.is_empty() {
                     thread::sleep(Duration::from_millis(10));
@@ -192,6 +212,20 @@ impl EventHook {
             }
             Err(_) => Err(EventCommunicationError::DidNotReceiveIDResponse),
         }
+    }
+
+    pub fn start_accumulation(
+        &mut self,
+        sub_type: SubscriptionType,
+    ) -> Result<(), EventCommunicationError> {
+        let (recv, _id) = self.communicate_subscription(sub_type)?;
+        self.accumulate = Arc::new(Mutex::new(Some(recv)));
+        self.ensure_dispatcher();
+        Ok(())
+    }
+    pub fn dump_accumulation(&mut self) -> Vec<SubscriptionMessage> {
+        let mut msgs = self.accumulated_messages.lock().unwrap();
+        std::mem::take(&mut msgs)
     }
 
     pub fn set_selected_screen(

@@ -649,6 +649,13 @@ where
         Ok(result)
     }
 
+    pub fn handle_key_press(&mut self, m: SubscriptionMessage) -> Result<(), AppError> {
+        for (_id, screen) in &mut self.screens {
+            screen.handle_input_message(&m.clone(), &mut self.obj_library)?
+        }
+        Ok(())
+    }
+
     /// selects a different screen, if a mouse button has been clicked
     /// the EventHook is needed to access the mouse's current position
     pub fn handle_screen_selection(&mut self, hook: &EventHook) -> Result<(), AppError> {

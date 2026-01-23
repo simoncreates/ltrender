@@ -1,20 +1,22 @@
-use std::{sync::mpsc, thread, time::Duration};
-
 #[cfg(feature = "screen_select_subscription")]
 use crate::CrosstermEventManager;
 use crate::{
-    Renderer, ScreenBuffer,
-    input_handler::{hook::EventHook, manager::EventHandler},
+    input_handler::{
+        hook::EventHook,
+        manager::{EventHandler, KeyAction, KeySubscriptionTypes, SubscriptionType},
+    },
     rendering::{
         render_handle::{RenderCommand, RenderHandle},
         renderer::RenderModeBehavior,
     },
     terminal_buffer::CellDrawer,
+    Renderer, ScreenBuffer,
 };
+use std::{sync::mpsc, thread, time::Duration};
 
 fn start_thread<B, M>(
     mut renderer: Renderer<B, M>,
-    event_hook: Option<EventHook>,
+    mut event_hook: Option<EventHook>,
 ) -> RenderHandle<M>
 where
     B: ScreenBuffer + Send + 'static,
@@ -22,12 +24,24 @@ where
     M: RenderModeBehavior + Send + 'static,
 {
     let (tx, rx) = mpsc::channel::<RenderCommand>();
+    if let Some(hook) = &mut event_hook {
+        // todo: either add multiple accumulations, or a subscription type for all possible message types
+        hook.start_accumulation(SubscriptionType::Key(
+            KeySubscriptionTypes::All,
+            KeyAction::Any,
+        ))
+        .unwrap();
+    };
     // spawn the renderer loop
     thread::spawn(move || {
         loop {
             let _ = renderer.remove_all_framebased_objects();
-            if let Some(hook) = &event_hook {
+            if let Some(hook) = &mut event_hook {
                 let _ = renderer.handle_screen_selection(hook);
+                let msgs = hook.dump_accumulation();
+                for msg in msgs {
+                    let _ = renderer.handle_key_press(msg);
+                }
             }
             while let Ok(cmd) = rx.recv_timeout(Duration::from_millis(2)) {
                 match cmd {
@@ -198,7 +212,7 @@ where
     B::Drawer: CellDrawer + Send + 'static,
     M: RenderModeBehavior + Send + 'static,
 {
-    use crate::{CrosstermEventManager, input_handler::manager::TargetScreen};
+    use crate::{input_handler::manager::TargetScreen, CrosstermEventManager};
 
     let (event_mngr, event_handler, screen_sel_handler) =
         CrosstermEventManager::new_with_select_sub(TargetScreen::None);
